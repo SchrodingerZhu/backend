@@ -14,10 +14,9 @@ int main() {
             {3, 4},
     };
     auto g = Graph(data, 5);
-    size_t failure;
-    auto res = g.color(3, failure);
-    for (size_t i = 0; i < res.size(); ++i) {
-        std::cout << i << " : " << res[i] << std::endl;
+    auto res = g.color(3);
+    for (size_t i = 0; i < res.first.size(); ++i) {
+        std::cout << i << " : " << res.first[i] << std::endl;
     }
-    if (res.empty()) abort();
+    if (res.first.empty()) abort();
 }

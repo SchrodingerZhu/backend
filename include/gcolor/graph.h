@@ -22,7 +22,7 @@ class Graph {
 public:
     explicit Graph(std::vector<std::pair<size_t, size_t>> g, size_t N);
 
-    std::vector<size_t> color(size_t colors, size_t& failure);
+    std::pair<std::vector<size_t>, std::vector<size_t>> color(size_t colors);
 };
 
 #endif //GRAPH_COLORING_GRAPH_H
