@@ -5,7 +5,8 @@
 #include <gcolor/graph.h>
 #include <iostream>
 using namespace vmips;
-int main() {
+
+void test_simple() {
     auto zero = VirtReg::create_constant("zero");
     auto sp = VirtReg::create_constant("sp");
     auto r0 = VirtReg::create();
@@ -21,7 +22,7 @@ int main() {
     auto a4 = Ternary::create<add>(r3, r1, r2);
     auto a5 = Ternary::create<add>(r4, r0, r3);
     auto a6 = Ternary::create<add>(r5, r2, r1);
-    auto node = CFGNode();
+    auto node = CFGNode("uncolored");
 
     node.instructions.push_back(a1);
     node.instructions.push_back(a2);
@@ -34,5 +35,32 @@ int main() {
     node.label = "colored";
     node.color(sp, shift);
     node.output(std::cout);
-    return 0;
+}
+
+void test_br() {
+    Function f {"test"};
+    f.entry();
+    auto zero = VirtReg::create_constant("zero");
+    auto r0 = f.append<addi>(zero, 1);
+    auto r1 = f.append<addi>(zero, 1);
+    auto br1 = f.branch<beq>(r0, r1);
+    auto r2 = f.append<addi>(zero, 1);
+    f.switch_to(br1.second);
+    auto r3 = f.append<addi>(zero, 2);
+    auto r4 = f.append<add>(r3, r3);
+    auto mm = f.append<add>(r0, r0);
+    f.join(br1.first, br1.second);
+    f.add_phi(r2, r4);
+    f.append<add>(r4, r4);
+    f.append<addi>(r4, 4);
+    f.append<add>(r4, r0);
+    f.append<add>(r1, r0);
+    f.output(std::cout);
+    std::cout << std::endl;
+    f.color();
+    std::cout << std::endl;
+    f.output(std::cout);
+}
+int main() {
+    test_br();
 }

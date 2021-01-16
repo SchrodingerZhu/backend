@@ -8,7 +8,7 @@
 
 using namespace vmips;
 
-static inline void color_to_reg(char * buf, size_t color) {
+static inline void color_to_reg(char *buf, size_t color) {
     if (color < 10) {
         sprintf(buf, "t%zu", color);
     } else {
@@ -24,6 +24,7 @@ VirtReg::VirtReg() : allocated(false), spilled(false) {
 std::shared_ptr<VirtReg> VirtReg::create() {
     auto reg = std::make_shared<VirtReg>();
     reg->id.number = GLOBAL.fetch_add(1);
+    reg->parent = reg;
     return reg;
 }
 
@@ -31,10 +32,9 @@ std::shared_ptr<VirtReg> VirtReg::create_constant(const char *name) {
     auto reg = std::make_shared<VirtReg>();
     reg->allocated = true;
     std::strcpy(reg->id.name, name);
+    reg->parent = reg;
     return reg;
 }
-
-
 
 
 void Instruction::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &) const {
@@ -53,7 +53,11 @@ bool Instruction::used_register(const std::shared_ptr<VirtReg> &reg) const {
     return false;
 }
 
-void Instruction::replace(const std::shared_ptr<VirtReg>& reg, const std::shared_ptr<VirtReg>& target) {
+void Instruction::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+}
+
+std::shared_ptr<CFGNode> Instruction::branch() {
+    return nullptr;
 }
 
 
@@ -76,13 +80,13 @@ bool Ternary::used_register(const std::shared_ptr<VirtReg> &reg) const {
     return lhs == reg || op0 == reg || op1 == reg;
 }
 
-void Ternary::replace(const std::shared_ptr<VirtReg>& reg, const std::shared_ptr<VirtReg>& target) {
+void Ternary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
     if (lhs == reg) lhs = target;
     if (op0 == reg) op0 = target;
     if (op1 == reg) op1 = target;
 }
 
-void Ternary::output(std::ostream & out) const {
+void Ternary::output(std::ostream &out) const {
     out << name() << " " << *lhs << ", " << *op0 << ", " << *op1;
 }
 
@@ -90,10 +94,15 @@ void CFGNode::dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs) {
     if (visited) return;
     visited = true;
     for (auto &i : instructions) {
+        auto trial = dynamic_cast<phi*>(i.get());
+        if (trial) {
+            unite(trial->op0, trial->op1);
+        }
         i->collect_register(regs);
     }
     for (auto &i : out_edges) {
-        i->dfs_collect(regs);
+        std::shared_ptr<CFGNode> n{i};
+        n->dfs_collect(regs);
     }
     visited = false;
 }
@@ -102,11 +111,13 @@ void CFGNode::setup_living(const std::unordered_set<std::shared_ptr<VirtReg>> &r
     if (visited) return;
     visited = true;
     for (auto &i : out_edges) {
-        i->setup_living(reg);
+        std::shared_ptr<CFGNode> n{i};
+        n->setup_living(reg);
     }
     for (auto &i : reg) {
         for (auto &j: out_edges) {
-            if (j->lives.count(i)) {
+            std::shared_ptr<CFGNode> n{j};
+            if (n->lives.count(i)) {
                 lives[i] = instructions.size();
             }
         }
@@ -122,7 +133,21 @@ void CFGNode::setup_living(const std::unordered_set<std::shared_ptr<VirtReg>> &r
 }
 
 void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &liveness) {
-    if (visited) return;
+
+    if (visited) {
+        // detect once more on loop
+        if (out_edges.empty()) {
+            for (auto &i : liveness) {
+                for (auto &j : liveness) {
+                    if (i->id.number == j->id.number) continue;
+                    else {
+                        find_root(i)->neighbors.insert(j);
+                    }
+                }
+            }
+        }
+        return;
+    }
     visited = true;
     std::unordered_map<std::shared_ptr<VirtReg>, size_t> birth; // marks define in this scope
 
@@ -143,7 +168,7 @@ void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
                 auto interleaved = lives.count(i) && birth.count(j) && lives[i] < birth[j];
                 interleaved = interleaved || (lives.count(j) && birth.count(i) && lives[j] < birth[i]);
                 if (!interleaved) {
-                    i->neighbors.insert(j);
+                    find_root(i)->neighbors.insert(j);
                 }
             }
         }
@@ -158,7 +183,8 @@ void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
 
     // handle child
     for (auto &i : out_edges) {
-        i->generate_web(liveness);
+        std::shared_ptr<CFGNode> n{i};
+        n->generate_web(liveness);
     }
 
     // if no child, one more detection is needed
@@ -167,7 +193,7 @@ void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
             for (auto &j : liveness) {
                 if (i->id.number == j->id.number) continue;
                 else {
-                    i->neighbors.insert(j);
+                    find_root(i)->neighbors.insert(j);
                 }
             }
         }
@@ -192,26 +218,31 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<V
     visited = true;
     std::vector<std::shared_ptr<Instruction>> new_instr;
     std::shared_ptr<VirtReg> last = nullptr; // consecutive
-    for(auto &i : instructions) {
-        if (i->used_register(reg)) {
-            auto tmp = last? last: VirtReg::create();
+    for (size_t i = 0;  i < instructions.size(); ++i) {
+        if (instructions[i]->used_register(reg)) {
+            auto tmp = last ? last : VirtReg::create();
             if (last) new_instr.pop_back(); // extra save
             tmp->spilled = true;
             auto load = Memory::create<lw>(tmp, sp, stack_location);
             auto save = Memory::create<sw>(tmp, sp, stack_location);
-            if(i->def() != reg && !last) new_instr.push_back(load);
-            new_instr.push_back(i);
-            new_instr.push_back(save); // TODO: discard on sw on returning
-            i->replace(reg, tmp);
+            if (instructions[i]->def() != reg && !last) new_instr.push_back(load);
+            new_instr.push_back(instructions[i]);
+            auto is_branch = (bool)dynamic_cast<Unconditional*>(instructions[i].get())
+                    && dynamic_cast<CmpBranch*>(instructions[i].get())
+                    && dynamic_cast<ZeroBranch*>(instructions[i].get());
+            if (i != instructions.size() - 1 || !is_branch)
+                new_instr.push_back(save); // TODO: discard on sw on returning
+            instructions[i]->replace(reg, tmp);
             last = tmp;
         } else {
             last = nullptr;
-            new_instr.push_back(i);
+            new_instr.push_back(instructions[i]);
         }
     }
     instructions = new_instr;
-    for (auto & i : out_edges) {
-        i->spill(reg, sp, stack_location);
+    for (auto &i : out_edges) {
+        std::shared_ptr<CFGNode> n{i};
+        n->spill(reg, sp, stack_location);
     }
     visited = false;
 }
@@ -220,13 +251,17 @@ void CFGNode::dfs_reset() {
     if (visited) return;
     visited = true;
     lives.clear();
-    for (auto & i : out_edges) {
-        i->dfs_reset();
+    for (auto &i : out_edges) {
+        std::shared_ptr<CFGNode> n{i};
+        n->dfs_reset();
     }
     visited = false;
 }
+
 #include <iostream>
-void CFGNode::color(const std::shared_ptr<VirtReg>& sp, ssize_t& current_stack_shift) {
+#include <utility>
+
+void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_shift) {
     auto success = false;
     do {
         std::unordered_set<std::shared_ptr<VirtReg>> regs;
@@ -235,11 +270,15 @@ void CFGNode::color(const std::shared_ptr<VirtReg>& sp, ssize_t& current_stack_s
         std::unordered_set<std::shared_ptr<VirtReg>> liveness;
         generate_web(liveness);
         std::vector<std::shared_ptr<VirtReg>> vec;
-        for (auto i : regs) {
-            vec.push_back(i);
+        for (auto &i : regs) {
+            if (find_root(i) == i) {
+                vec.push_back(i);
+            }
         }
         std::sort(vec.begin(), vec.end(),
-                  [](const std::shared_ptr<VirtReg>& a, const std::shared_ptr<VirtReg>& b){ return a->id.number < b->id.number; });
+                  [](const std::shared_ptr<VirtReg> &a, const std::shared_ptr<VirtReg> &b) {
+                      return a->id.number < b->id.number;
+                  });
         std::unordered_map<size_t, size_t> idx_map;
         for (auto i = 0; i < vec.size(); ++i) {
             idx_map[vec[i]->id.number] = i;
@@ -257,12 +296,14 @@ void CFGNode::color(const std::shared_ptr<VirtReg>& sp, ssize_t& current_stack_s
         auto colors = g.color(18);
         std::shared_ptr<VirtReg> failure = nullptr;
         if (colors.first.empty()) {
-            for (auto & i: vec) {
+            for (auto &i: vec) {
                 i->neighbors.clear();
+                i->union_size = 1;
+                i->parent = i;
             }
             dfs_reset();
             for (auto &i : colors.second) {
-                if(!vec[i]->spilled) {
+                if (!vec[i]->spilled) {
                     failure = vec[i];
                     break;
                 }
@@ -270,7 +311,7 @@ void CFGNode::color(const std::shared_ptr<VirtReg>& sp, ssize_t& current_stack_s
             spill(failure, sp, current_stack_shift);
             std::cout << "spilling: " << failure->id.number << std::endl;
             output(std::cout);
-            current_stack_shift -= 4;
+            current_stack_shift += 4;
         } else {
             success = true;
             for (auto i = 0; i < vec.size(); ++i) {
@@ -283,7 +324,7 @@ void CFGNode::color(const std::shared_ptr<VirtReg>& sp, ssize_t& current_stack_s
 }
 
 Memory::Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> addr, ssize_t offset)
-: target(std::move(target)), addr(std::move(addr)), offset(offset) {
+        : target(std::move(target)), addr(std::move(addr)), offset(offset) {
 
 }
 
@@ -304,11 +345,229 @@ bool Memory::used_register(const std::shared_ptr<VirtReg> &reg) const {
 }
 
 void Memory::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (this->target == reg) {this->target = target; }
-    if (this->addr == reg) {this->addr = target; }
+    if (this->target == reg) { this->target = target; }
+    if (this->addr == reg) { this->addr = target; }
 }
 
-void Memory::output(std::ostream & out) const {
+void Memory::output(std::ostream &out) const {
     out << name() << " " << *target << ", " << offset << "(" << *addr << ")";
 }
 
+BinaryImm::BinaryImm(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm)
+        : lhs(std::move(lhs)), rhs(std::move(rhs)), imm(imm) {
+}
+
+void BinaryImm::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+    if (!lhs->allocated) set.insert(lhs);
+    if (!rhs->allocated) set.insert(rhs);
+}
+
+std::shared_ptr<VirtReg> BinaryImm::def() const {
+    return lhs;
+}
+
+bool BinaryImm::used_register(const std::shared_ptr<VirtReg> &reg) const {
+    return lhs == reg || rhs == reg;
+}
+
+void BinaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    if (lhs == reg) lhs = target;
+    if (rhs == reg) rhs = target;
+}
+
+void BinaryImm::output(std::ostream &out) const {
+    out << name() << " " << *lhs << ", " << *rhs << ", " << std::hex << std::showbase << imm << std::noshowbase;
+}
+
+Binary::Binary(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs)
+        : lhs(std::move(lhs)), rhs(std::move(rhs)) {
+
+}
+
+Unary::Unary(std::shared_ptr<VirtReg> t)
+        : target(std::move(t)) {
+
+}
+
+void Unary::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+    if (!target->allocated) set.insert(target);
+}
+
+std::shared_ptr<VirtReg> Unary::def() const {
+    return target;
+}
+
+bool Unary::used_register(const std::shared_ptr<VirtReg> &reg) const {
+    return target == reg;
+}
+
+void Unary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    if (this->target == reg) this->target = target;
+}
+
+void Unary::output(std::ostream &out) const {
+    out << name() << " " << *target;
+}
+
+UnaryImm::UnaryImm(std::shared_ptr<VirtReg> t, ssize_t imm)
+        : target(std::move(t)), imm(imm) {
+
+}
+
+std::shared_ptr<VirtReg> Binary::def() const {
+    return lhs;
+}
+
+bool Binary::used_register(const std::shared_ptr<VirtReg> &reg) const {
+    return lhs == reg || rhs == reg;
+}
+
+void Binary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    if (lhs == reg) lhs = target;
+    if (rhs == reg) rhs = target;
+}
+
+void Binary::output(std::ostream &out) const {
+    out << name() << " " << *lhs << ", " << *rhs;
+}
+
+void Binary::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+    if (!lhs->allocated) set.insert(lhs);
+    if (!rhs->allocated) set.insert(rhs);
+}
+
+void CFGNode::output(std::ostream &out) {
+    if (visited) return;
+    visited = true;
+    out << label << ":" << std::endl;
+    for (auto &i : instructions) {
+        out << "\t";
+        i->output(out);
+        out << "\n";
+    }
+    visited = false;
+}
+
+CFGNode::CFGNode(std::string name) : label(std::move(name)) {
+
+}
+
+void UnaryImm::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+    if (!target->allocated) set.insert(target);
+}
+
+std::shared_ptr<VirtReg> UnaryImm::def() const {
+    return target;
+}
+
+bool UnaryImm::used_register(const std::shared_ptr<VirtReg> &reg) const {
+    return target == reg;
+}
+
+void UnaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    if (this->target == reg) this->target = target;
+}
+
+void UnaryImm::output(std::ostream &out) const {
+    out << name() << " " << target << ", " << std::hex << std::showbase << imm << std::noshowbase;
+}
+
+jal::jal(std::string name) : function_name(std::move(name)) {
+
+}
+
+const char *jal::name() const {
+    return "jal";
+}
+
+void jal::output(std::ostream &out) const {
+    out << name() << " " << function_name;
+}
+
+Unconditional::Unconditional(std::weak_ptr<CFGNode> block) : block(std::move(block)) {}
+
+void Unconditional::output(std::ostream &out) const {
+    out << name() << " " << block.lock()->label;
+}
+
+std::shared_ptr<CFGNode> Unconditional::branch() {
+    return block.lock();
+}
+
+std::shared_ptr<VirtReg> Unconditional::def() const {
+    return nullptr;
+}
+
+ZeroBranch::ZeroBranch(std::weak_ptr<CFGNode> block, std::shared_ptr<VirtReg> check)
+        : block(std::move(block)), Unary(std::move(check)) {
+
+}
+
+void ZeroBranch::output(std::ostream &out) const {
+    out << name() << " " << *this->target << ", " << block.lock()->label;
+}
+
+std::shared_ptr<CFGNode> ZeroBranch::branch() {
+    return block.lock();
+}
+
+std::shared_ptr<VirtReg> ZeroBranch::def() const {
+    return nullptr;
+}
+
+CmpBranch::CmpBranch(std::weak_ptr<CFGNode> block,
+                     std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1)
+                     : Binary(std::move(op0), std::move(op1)), block(std::move(block)) {
+
+}
+
+void CmpBranch::output(std::ostream &out) const {
+    std::cout << name() << " " << *this->lhs << ", " << *this->rhs << ", " << block.lock()->label;
+}
+
+std::shared_ptr<CFGNode> CmpBranch::branch() {
+    return block.lock();
+}
+
+std::shared_ptr<VirtReg> CmpBranch::def() const {
+    return nullptr;
+}
+
+std::string Function::next_name() {
+    std::stringstream ss;
+    ss << name << "_branch_" << count ++;
+    return ss.str();
+}
+
+std::shared_ptr<CFGNode> Function::entry() {
+    auto ret = std::make_shared<CFGNode>(name);
+    blocks.push_back(ret);
+    switch_to(ret);
+    return ret;
+}
+
+void Function::output(std::ostream & out) const {
+    for(auto & i : blocks) {
+        i->output(out);
+    }
+}
+
+void Function::color() {
+    auto sp = VirtReg::create_constant("sp");
+    blocks[0]->color(sp, stack_size);
+}
+
+Function::Function(std::string name) : name(std::move(name)) {}
+
+phi::phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1) : op0(std::move(op0)), op1(std::move(op1)) {
+
+}
+
+void phi::output(std::ostream &out) const {
+    out << "# phi node";
+}
+
+void phi::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    if (op0 == reg) op0 = target;
+    if (op1 == reg) op1 = target;
+}
