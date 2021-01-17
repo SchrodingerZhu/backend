@@ -272,7 +272,7 @@ void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
     visited = false;
 }
 
-void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &sp, ssize_t stack_location) {
+void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation>& location) {
     if (visited) return;
     visited = true;
     std::vector<std::shared_ptr<Instruction>> new_instr;
@@ -280,10 +280,9 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<V
     for (size_t i = 0; i < instructions.size(); ++i) {
         if (instructions[i]->used_register(reg)) {
             auto tmp = last ? last : VirtReg::create();
-            //if (last) new_instr.pop_back();// extra save
             tmp->spilled = true;
-            auto load = Memory::create<lw>(tmp, sp, stack_location);
-            auto save = Memory::create<sw>(tmp, sp, stack_location);
+            auto load = Memory::create<lw>(tmp, location);
+            auto save = Memory::create<sw>(tmp, location);
             if (instructions[i]->def() != reg && !last) new_instr.push_back(load);
             new_instr.push_back(instructions[i]);
             if (instructions[i]->def() == reg)
@@ -298,7 +297,7 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<V
     instructions = new_instr;
     for (auto &i : out_edges) {
         std::shared_ptr<CFGNode> n{i};
-        n->spill(reg, sp, stack_location);
+        n->spill(reg, location);
     }
     visited = false;
 }
@@ -364,7 +363,8 @@ void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_s
                     break;
                 }
             }
-            spill(failure, sp, current_stack_shift);
+            auto location = function->new_memory(4);
+            spill(failure, location);
             current_stack_shift += 4;
         } else {
             success = true;
@@ -377,14 +377,14 @@ void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_s
     } while (!success);
 }
 
-Memory::Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> addr, ssize_t offset)
-        : target(std::move(target)), addr(std::move(addr)), offset(offset) {
+Memory::Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location)
+        : target(std::move(target)), location(std::move(location)) {
 
 }
 
 void Memory::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!target->allocated) set.insert(target);
-    if (!addr->allocated) set.insert(addr);
+    if (location->status == MemoryLocation::Static && !location->base->allocated) set.insert(location->base);
 }
 
 std::shared_ptr<VirtReg> Memory::def() const {
@@ -395,16 +395,20 @@ std::shared_ptr<VirtReg> Memory::def() const {
 }
 
 bool Memory::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return target == reg || addr == reg;
+    return target == reg || location->base == reg;
 }
 
 void Memory::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
     if (this->target == reg) { this->target = target; }
-    if (this->addr == reg) { this->addr = target; }
+    if (this->location->base == reg) { location->base = target; }
 }
 
 void Memory::output(std::ostream &out) const {
-    out << name() << " " << *target << ", " << offset << "(" << *addr << ")";
+    if (location->status == MemoryLocation::Assigned || location->status == MemoryLocation::Static) {
+        out << name() << " " << *target << ", " << location->offset << "(" << *location->base << ")";
+    } else {
+        out << name() << " " << *target << ", " << "unallocated<" << location->identifier << ">";
+    }
 }
 
 BinaryImm::BinaryImm(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm)
@@ -502,7 +506,7 @@ void CFGNode::output(std::ostream &out) {
     visited = false;
 }
 
-CFGNode::CFGNode(std::string name) : label(std::move(name)) {
+CFGNode::CFGNode(Function* function, std::string name) : label(std::move(name)), function(function) {
 
 }
 
@@ -594,7 +598,7 @@ std::string Function::next_name() {
 }
 
 std::shared_ptr<CFGNode> Function::entry() {
-    auto ret = std::make_shared<CFGNode>(name);
+    auto ret = std::make_shared<CFGNode>(this, name);
     blocks.push_back(ret);
     switch_to(ret);
     return ret;

@@ -4,7 +4,8 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 18
+#define REG_NUM 3
+#include <utility>
 #include <vector>
 #include <string>
 #include <memory>
@@ -36,6 +37,18 @@ namespace vmips {
 
     struct CFGNode;
     struct Function;
+
+    struct MemoryLocation {
+        size_t identifier = -1;
+        size_t offset {};
+        size_t size {};
+        std::shared_ptr<class VirtReg> base {};
+        enum Status {
+            Assigned,
+            Undetermined,
+            Static
+        } status {};
+    };
 
     // must be SSA
     class VirtReg {
@@ -245,10 +258,9 @@ namespace vmips {
     class Memory : public Instruction {
     public:
         std::shared_ptr<VirtReg> target;
-        std::shared_ptr<VirtReg> addr;
-        ssize_t offset;
+        std::shared_ptr<MemoryLocation> location;
 
-        Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> addr, ssize_t offset);
+        Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
         void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
@@ -260,7 +272,7 @@ namespace vmips {
 
         template<class T>
         static std::shared_ptr<Instruction>
-        create(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> addr, size_t offset);
+        create(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
         void output(std::ostream &) const override;
     };
@@ -329,13 +341,14 @@ public:                                         \
     // upward links are broken down
 
     struct CFGNode {
+        Function* function;
         std::string label;
         bool visited = false;
         std::vector<std::shared_ptr<Instruction>> instructions {};
         std::vector<std::weak_ptr<CFGNode>> out_edges {}; // at most two
         std::unordered_map<std::shared_ptr<VirtReg>, size_t> lives {}; // instructions.size  means live through
 
-        explicit CFGNode(std::string name);
+        CFGNode(Function* function, std::string name);
         void dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs);
 
         void dfs_reset();
@@ -344,7 +357,7 @@ public:                                         \
 
         void generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &liveness);
 
-        void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &sp, ssize_t stack_location);
+        void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation>& location);
 
         void color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_shift);
 
@@ -380,8 +393,8 @@ public:                                         \
 
         template<typename Instr, typename ...Args>
         std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(std::string next, std::string target, Args&&... args) {
-            auto a = std::make_shared<CFGNode>(next);
-            auto b = std::make_shared<CFGNode>(target);
+            auto a = std::make_shared<CFGNode>(function, next);
+            auto b = std::make_shared<CFGNode>(function, target);
             auto instr = std::make_shared<Instr>(b, std::forward<Args>(args)...);
             instructions.push_back(instr);
             out_edges.push_back(a);
@@ -395,6 +408,9 @@ public:                                         \
         static const constexpr size_t PADDING = 4;
         ssize_t stack_size = 0;
         size_t count = 0;
+        size_t memory_count = 0;
+        std::vector<std::shared_ptr<MemoryLocation>> mem_blocks;
+
 
         // need to store all blocks here,
         // because cfg can have loop so edges are stored as weak_ptr
@@ -405,6 +421,27 @@ public:                                         \
         Function(std::string name);
         std::string next_name();
 
+        std::shared_ptr<MemoryLocation> new_memory(size_t size) {
+            auto res = std::make_shared<MemoryLocation>();
+            res->size = size;
+            res->identifier = memory_count++;
+            res->status = MemoryLocation::Undetermined;
+            res->offset = -1;
+            res->base = get_special(SpecialReg::sp);
+            mem_blocks.push_back(res);
+            return res;
+        }
+
+        std::shared_ptr<MemoryLocation> new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t) {
+            auto res = std::make_shared<MemoryLocation>();
+            res->size = size;
+            res->identifier = memory_count++;
+            res->status = MemoryLocation::Static;
+            res->offset = -1;
+            res->base = std::move(reg);
+            return res;
+        }
+
         std::shared_ptr<CFGNode> entry();
 
         template<typename Instr, typename ...Args>
@@ -413,7 +450,7 @@ public:                                         \
         }
 
         std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y) {
-            auto node = std::make_shared<CFGNode>(next_name());
+            auto node = std::make_shared<CFGNode>(this, next_name());
             if (blocks.back() != x) x->branch_existing<j>(node);
             if (blocks.back() != y) y->branch_existing<j>(node);
             blocks.push_back(node);
@@ -454,8 +491,8 @@ public:                                         \
 
     template<class T>
     std::shared_ptr<Instruction>
-    Memory::create(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> addr, size_t offset) {
-        return std::make_shared<T>(std::move(target), std::move(addr), offset);
+    Memory::create(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location) {
+        return std::make_shared<T>(std::move(target), std::move(location));
     }
 
     template<class T>
