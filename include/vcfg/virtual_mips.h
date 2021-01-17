@@ -4,7 +4,7 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 10
+#define REG_NUM 18
 #include <vector>
 #include <string>
 #include <memory>
