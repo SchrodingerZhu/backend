@@ -4,7 +4,7 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-
+#define REG_NUM 18
 #include <vector>
 #include <string>
 #include <memory>
@@ -16,6 +16,24 @@
 #include <sstream>
 
 namespace vmips {
+
+    enum class SpecialReg {
+        zero,
+        at,
+        v0,
+        v1,
+        a0,
+        a1,
+        a2,
+        a3,
+        k0,
+        k1,
+        gp,
+        sp,
+        fp,
+        ra,
+    };
+
     struct CFGNode;
     struct Function;
 
@@ -42,29 +60,12 @@ namespace vmips {
         friend std::ostream &operator<<(std::ostream &, const VirtReg &);
     };
 
-    static inline std::shared_ptr<VirtReg> find_root(std::shared_ptr<VirtReg> x) {
-        std::shared_ptr<VirtReg> root = x;
-        while (root->parent.lock() != root) {
-            root = root->parent.lock();
-        }
-        while (x->parent.lock() != root) {
-            std::shared_ptr<VirtReg> parent = x->parent.lock();
-            x->parent = root;
-            x = parent;
-        }
-        return root;
-    }
+    extern char special_names[(size_t)SpecialReg::ra + 1][8];
+    std::shared_ptr<VirtReg> get_special(SpecialReg reg);
 
-    static inline void unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y) {
-        x = find_root(x);
-        y = find_root(y);
-        if (x == y) return;
-        if (x->union_size < y->union_size) {
-            std::swap(x, y);
-        }
-        y->parent = x;
-        x->union_size += y->union_size;
-    }
+    std::shared_ptr<VirtReg> find_root(std::shared_ptr<VirtReg> x);
+
+    void unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y);
 
     class Instruction {
     public:
@@ -473,15 +474,7 @@ public:                                         \
         return std::make_shared<T>(t, imm);
     }
 
-    inline std::ostream &operator<<(std::ostream &out, const VirtReg &reg) {
-        auto root = find_root(reg.parent.lock());
-        if (root->allocated) {
-            out << "$" << root->id.name;
-        } else {
-            out << "$undef(" << root->id.number << ")";
-        }
-        return out;
-    }
+    std::ostream &operator<<(std::ostream &out, const VirtReg &reg);
 
 }
 #endif //BACKEND_VIRTUAL_MIPS_H

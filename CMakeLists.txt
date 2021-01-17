@@ -1,10 +1,14 @@
 cmake_minimum_required(VERSION 3.11)
 project(backend)
 set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -flto -ffunction-sections -march=native")
 include_directories(include)
 
-add_library(gcolor src/heap.cpp src/graph.cpp)
-add_library(vcfg src/virtual_mips.cpp)
+
+
+add_library(gcolor STATIC src/heap.cpp src/graph.cpp)
+add_library(vcfg SHARED src/virtual_mips.cpp)
 add_executable(draft tests/test.cpp)
 add_executable(heap_test tests/heap_test.cpp)
 add_executable(color_test tests/color_test.cpp)
@@ -15,4 +19,5 @@ add_test(color_test color_test)
 
 target_link_libraries(heap_test gcolor)
 target_link_libraries(color_test gcolor)
-target_link_libraries(draft vcfg gcolor)
+target_link_libraries(vcfg gcolor)
+target_link_libraries(draft vcfg)

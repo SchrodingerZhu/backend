@@ -7,8 +7,8 @@
 using namespace vmips;
 
 void test_simple() {
-    auto zero = VirtReg::create_constant("zero");
-    auto sp = VirtReg::create_constant("sp");
+    auto zero = get_special(SpecialReg::zero);
+    auto sp = get_special(SpecialReg::sp);
     auto r0 = VirtReg::create();
     auto r1 = VirtReg::create();
     auto r2 = VirtReg::create();
@@ -40,7 +40,7 @@ void test_simple() {
 void test_br() {
     Function f {"test"};
     f.entry();
-    auto zero = VirtReg::create_constant("zero");
+    auto zero = get_special(SpecialReg::zero);;
     auto r0 = f.append<addi>(zero, 1);
     auto r1 = f.append<addi>(zero, 1);
     auto br1 = f.branch<beq>(r0, r1);

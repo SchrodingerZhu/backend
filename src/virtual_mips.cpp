@@ -8,6 +8,65 @@
 
 using namespace vmips;
 
+char vmips::special_names[(size_t) SpecialReg::ra + 1][8] = {
+        "zero",
+        "at",
+        "v0",
+        "v1",
+        "a0",
+        "a1",
+        "a2",
+        "a3",
+        "k0",
+        "k1",
+        "gp",
+        "sp",
+        "fp",
+        "ra"
+};
+
+std::shared_ptr<VirtReg> vmips::get_special(SpecialReg reg) {
+    static std::shared_ptr<VirtReg> specials[(size_t)SpecialReg::ra + 1] = {nullptr};
+    if (!specials[(size_t)reg]) {
+        specials[(size_t)reg] = VirtReg::create_constant(special_names[(size_t)reg]);
+    }
+    return specials[(size_t)reg];
+}
+
+void vmips::unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y) {
+    x = find_root(x);
+    y = find_root(y);
+    if (x == y) return;
+    if (x->union_size < y->union_size) {
+        std::swap(x, y);
+    }
+    y->parent = x;
+    x->union_size += y->union_size;
+}
+
+std::shared_ptr<VirtReg> vmips::find_root(std::shared_ptr<VirtReg> x) {
+    std::shared_ptr<VirtReg> root = x;
+    while (root->parent.lock() != root) {
+        root = root->parent.lock();
+    }
+    while (x->parent.lock() != root) {
+        std::shared_ptr<VirtReg> parent = x->parent.lock();
+        x->parent = root;
+        x = parent;
+    }
+    return root;
+}
+
+std::ostream &vmips::operator<<(std::ostream &out, const VirtReg &reg) {
+    auto root = find_root(reg.parent.lock());
+    if (root->allocated) {
+        out << "$" << root->id.name;
+    } else {
+        out << "$undef(" << root->id.number << ")";
+    }
+    return out;
+}
+
 static inline void color_to_reg(char *buf, size_t color) {
     if (color < 10) {
         sprintf(buf, "t%zu", color);
@@ -94,7 +153,7 @@ void CFGNode::dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs) {
     if (visited) return;
     visited = true;
     for (auto &i : instructions) {
-        auto trial = dynamic_cast<phi*>(i.get());
+        auto trial = dynamic_cast<phi *>(i.get());
         if (trial) {
             unite(trial->op0, trial->op1);
         }
@@ -218,7 +277,7 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<V
     visited = true;
     std::vector<std::shared_ptr<Instruction>> new_instr;
     std::shared_ptr<VirtReg> last = nullptr; // consecutive
-    for (size_t i = 0;  i < instructions.size(); ++i) {
+    for (size_t i = 0; i < instructions.size(); ++i) {
         if (instructions[i]->used_register(reg)) {
             auto tmp = last ? last : VirtReg::create();
             //if (last) new_instr.pop_back();// extra save
@@ -290,7 +349,7 @@ void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_s
             }
         }
         auto g = Graph(edges, vec.size());
-        auto colors = g.color(3);
+        auto colors = g.color(REG_NUM);
         std::shared_ptr<VirtReg> failure = nullptr;
         if (colors.first.empty()) {
             for (auto &i: vec) {
@@ -306,8 +365,6 @@ void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_s
                 }
             }
             spill(failure, sp, current_stack_shift);
-            std::cout << "spilling: " << failure->id.number << std::endl;
-            output(std::cout);
             current_stack_shift += 4;
         } else {
             success = true;
@@ -514,12 +571,12 @@ std::shared_ptr<VirtReg> ZeroBranch::def() const {
 
 CmpBranch::CmpBranch(std::weak_ptr<CFGNode> block,
                      std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1)
-                     : Binary(std::move(op0), std::move(op1)), block(std::move(block)) {
+        : Binary(std::move(op0), std::move(op1)), block(std::move(block)) {
 
 }
 
 void CmpBranch::output(std::ostream &out) const {
-    std::cout << name() << " " << *this->lhs << ", " << *this->rhs << ", " << block.lock()->label;
+    out << name() << " " << *this->lhs << ", " << *this->rhs << ", " << block.lock()->label;
 }
 
 std::shared_ptr<CFGNode> CmpBranch::branch() {
@@ -532,7 +589,7 @@ std::shared_ptr<VirtReg> CmpBranch::def() const {
 
 std::string Function::next_name() {
     std::stringstream ss;
-    ss << name << "_branch_" << count ++;
+    ss << name << "_branch_" << count++;
     return ss.str();
 }
 
@@ -543,14 +600,14 @@ std::shared_ptr<CFGNode> Function::entry() {
     return ret;
 }
 
-void Function::output(std::ostream & out) const {
-    for(auto & i : blocks) {
+void Function::output(std::ostream &out) const {
+    for (auto &i : blocks) {
         i->output(out);
     }
 }
 
 void Function::color() {
-    auto sp = VirtReg::create_constant("sp");
+    auto sp = get_special(SpecialReg::sp);
     blocks[0]->color(sp, stack_size);
 }
 
