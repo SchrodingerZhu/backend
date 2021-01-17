@@ -221,17 +221,14 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<V
     for (size_t i = 0;  i < instructions.size(); ++i) {
         if (instructions[i]->used_register(reg)) {
             auto tmp = last ? last : VirtReg::create();
-            if (last) new_instr.pop_back(); // extra save
+            //if (last) new_instr.pop_back();// extra save
             tmp->spilled = true;
             auto load = Memory::create<lw>(tmp, sp, stack_location);
             auto save = Memory::create<sw>(tmp, sp, stack_location);
             if (instructions[i]->def() != reg && !last) new_instr.push_back(load);
             new_instr.push_back(instructions[i]);
-            auto is_branch = (bool)dynamic_cast<Unconditional*>(instructions[i].get())
-                    && dynamic_cast<CmpBranch*>(instructions[i].get())
-                    && dynamic_cast<ZeroBranch*>(instructions[i].get());
-            if (i != instructions.size() - 1 || !is_branch)
-                new_instr.push_back(save); // TODO: discard on sw on returning
+            if (instructions[i]->def() == reg)
+                new_instr.push_back(save);
             instructions[i]->replace(reg, tmp);
             last = tmp;
         } else {
@@ -293,7 +290,7 @@ void CFGNode::color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_s
             }
         }
         auto g = Graph(edges, vec.size());
-        auto colors = g.color(18);
+        auto colors = g.color(3);
         std::shared_ptr<VirtReg> failure = nullptr;
         if (colors.first.empty()) {
             for (auto &i: vec) {
