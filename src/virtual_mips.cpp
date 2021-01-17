@@ -589,7 +589,7 @@ std::shared_ptr<VirtReg> CmpBranch::def() const {
 
 std::string Function::next_name() {
     std::stringstream ss;
-    ss << name << "_branch_" << count++;
+    ss << name << "_$$branch$$_" << count++;
     return ss.str();
 }
 
