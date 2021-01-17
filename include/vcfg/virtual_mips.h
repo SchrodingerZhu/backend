@@ -4,7 +4,8 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 3
+#define REG_NUM 18
+#define SAVE_START 10
 #include <utility>
 #include <vector>
 #include <string>
@@ -56,6 +57,7 @@ namespace vmips {
     public:
         std::weak_ptr<VirtReg> parent;
         size_t union_size = 1;
+        std::shared_ptr<MemoryLocation> overlap_location = nullptr;
         std::unordered_set<std::shared_ptr<VirtReg>> neighbors;
         union {
             size_t number = 0;
@@ -219,6 +221,28 @@ namespace vmips {
         void output(std::ostream &) const override;
     };
 
+    struct callfunc : public Instruction {
+        Function *current;
+        std::unordered_set<std::shared_ptr<VirtReg>> overlap_temp {};
+        std::weak_ptr<Function> function;
+        std::vector<std::shared_ptr<VirtReg>> call_with;
+        std::shared_ptr<VirtReg> ret;
+        bool scanned = false;
+
+        callfunc(std::shared_ptr<VirtReg> ret, Function * current, std::weak_ptr<Function> function, std::vector<std::shared_ptr<VirtReg>> call_with);
+
+        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+
+        std::shared_ptr<VirtReg> def() const override;
+
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
+
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
+
+        void output(std::ostream &out) const override;
+
+    };
+
     class Unconditional : public Instruction {
     public:
         std::weak_ptr<CFGNode> block;
@@ -247,14 +271,6 @@ namespace vmips {
         std::shared_ptr<VirtReg> def() const override;
     };
 
-    class jal : public Instruction {
-    public:
-        std::string function_name;
-        explicit jal(std::string name);
-        const char *name() const override;
-        void output(std::ostream &out) const override;
-    };
-
     class Memory : public Instruction {
     public:
         std::shared_ptr<VirtReg> target;
@@ -277,9 +293,6 @@ namespace vmips {
         void output(std::ostream &) const override;
     };
 
-    //self defined marker
-    class Syscall : public Instruction {
-    };
 
 #define BASE_INIT(S, B) \
 template <typename ...Args> \
@@ -306,10 +319,6 @@ public:                                         \
     DECLARE(clo, Binary);
 
     DECLARE(clz, Binary);
-
-    //TODO: fix LA
-    class la : public Instruction {
-    };
 
     DECLARE(li, UnaryImm);
 
@@ -338,6 +347,26 @@ public:                                         \
 
     DECLARE(beq, CmpBranch);
 
+    DECLARE(syscall, Instruction);
+
+    DECLARE(blez, ZeroBranch);
+    DECLARE(ble, CmpBranch);
+    DECLARE(bge, CmpBranch);
+
+    class jr : public Unary {
+    public:
+        std::shared_ptr<VirtReg> def() const override;
+        jr(std::shared_ptr<VirtReg> reg);
+    };
+
+    class text : public Instruction {
+        std::string context;
+    public:
+        explicit text(std::string context);
+        const char * name() const override;
+        void output(std::ostream& out) const override;
+    };
+
     // upward links are broken down
 
     struct CFGNode {
@@ -359,7 +388,9 @@ public:                                         \
 
         void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation>& location);
 
-        void color(const std::shared_ptr<VirtReg> &sp, ssize_t &current_stack_shift);
+        size_t color(const std::shared_ptr<VirtReg> &sp);
+
+        void scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &liveness);
 
         void output(std::ostream &out);
 
@@ -403,14 +434,22 @@ public:                                         \
         }
     };
 
+
+
     struct Function {
         std::string name;
-        static const constexpr size_t PADDING = 4;
-        ssize_t stack_size = 0;
+        static const constexpr size_t PADDING = 8;
+        static const constexpr size_t MASK = PADDING - 1;
         size_t count = 0;
         size_t memory_count = 0;
+        MemoryLocation ra_location;
         std::vector<std::shared_ptr<MemoryLocation>> mem_blocks;
-
+        bool has_sub = false;
+        bool allocated = false;
+        size_t sub_argc = 0;
+        size_t save_regs = 0;
+        size_t stack_size = 0;
+        size_t argc;
 
         // need to store all blocks here,
         // because cfg can have loop so edges are stored as weak_ptr
@@ -418,29 +457,12 @@ public:                                         \
         std::vector<std::shared_ptr<CFGNode>> blocks;
         std::shared_ptr<CFGNode> cursor;
 
-        Function(std::string name);
+        Function(std::string name, size_t argc);
         std::string next_name();
 
-        std::shared_ptr<MemoryLocation> new_memory(size_t size) {
-            auto res = std::make_shared<MemoryLocation>();
-            res->size = size;
-            res->identifier = memory_count++;
-            res->status = MemoryLocation::Undetermined;
-            res->offset = -1;
-            res->base = get_special(SpecialReg::sp);
-            mem_blocks.push_back(res);
-            return res;
-        }
+        std::shared_ptr<MemoryLocation> new_memory(size_t size);
 
-        std::shared_ptr<MemoryLocation> new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t) {
-            auto res = std::make_shared<MemoryLocation>();
-            res->size = size;
-            res->identifier = memory_count++;
-            res->status = MemoryLocation::Static;
-            res->offset = -1;
-            res->base = std::move(reg);
-            return res;
-        }
+        std::shared_ptr<MemoryLocation> new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t);
 
         std::shared_ptr<CFGNode> entry();
 
@@ -449,18 +471,9 @@ public:                                         \
             return cursor->template append<Instr, Args...>(std::forward<Args>(args)...);
         }
 
-        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y) {
-            auto node = std::make_shared<CFGNode>(this, next_name());
-            if (blocks.back() != x) x->branch_existing<j>(node);
-            if (blocks.back() != y) y->branch_existing<j>(node);
-            blocks.push_back(node);
-            switch_to(node);
-            return node;
-        }
+        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y);
 
-        void add_phi(const std::shared_ptr<VirtReg>& x, const std::shared_ptr<VirtReg>& y) {
-            cursor->add_phi(x, y);
-        }
+        void add_phi(const std::shared_ptr<VirtReg>& x, const std::shared_ptr<VirtReg>& y);
 
         template<typename Instr, typename ...Args>
         std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(Args&&... args) {
@@ -474,13 +487,34 @@ public:                                         \
             return ret;
         }
 
-        void switch_to(const std::shared_ptr<CFGNode> &target) {
-            cursor = target;
+        void switch_to(const std::shared_ptr<CFGNode> &target);
+        template<typename ...Args>
+        std::shared_ptr<VirtReg> call(std::weak_ptr<Function> target, Args&&... args) {
+            auto ret = VirtReg::create();
+            has_sub = true;
+            sub_argc = std::max(sub_argc, target.lock()->argc);
+            auto calling = std::make_shared<callfunc>(ret, this, std::move(target), std::vector<std::shared_ptr<VirtReg>> {std::forward<Args>(args)...});
+            cursor->instructions.push_back(calling);
+            return ret;
+        }
+
+        template<typename ...Args>
+        void call_void(std::weak_ptr<Function> target, Args&&... args) {
+            has_sub = true;
+            sub_argc = std::max(sub_argc, target.lock()->argc);
+            auto calling = std::make_shared<callfunc>(nullptr, this, std::move(target), std::vector<std::shared_ptr<VirtReg>> {std::forward<Args>(args)...});
+            cursor->instructions.push_back(calling);
         }
 
         std::vector<size_t> final_regs;
-        void color();
+
+        size_t color();
+        void scan_overlap();
         void output(std::ostream &) const;
+        void handle_alloca();
+        void add_ret();
+        void assign_special(SpecialReg special, std::shared_ptr<VirtReg> reg);
+        void assign_special(SpecialReg special, ssize_t value);
     };
 
     template<class T>
@@ -512,6 +546,8 @@ public:                                         \
     }
 
     std::ostream &operator<<(std::ostream &out, const VirtReg &reg);
+
+    std::ostream &operator<<(std::ostream &out, const MemoryLocation &location);
 
 }
 #endif //BACKEND_VIRTUAL_MIPS_H
