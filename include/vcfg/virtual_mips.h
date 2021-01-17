@@ -321,6 +321,8 @@ public:                                         \
 
     DECLARE(b, Unconditional);
 
+    DECLARE(j, Unconditional);
+
     DECLARE(beq, CmpBranch);
 
     // upward links are broken down
@@ -411,8 +413,8 @@ public:                                         \
 
         std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y) {
             auto node = std::make_shared<CFGNode>(next_name());
-            if (blocks.back() != x) x->branch_existing<b>(node);
-            if (blocks.back() != y) y->branch_existing<b>(node);
+            if (blocks.back() != x) x->branch_existing<j>(node);
+            if (blocks.back() != y) y->branch_existing<j>(node);
             blocks.push_back(node);
             switch_to(node);
             return node;
@@ -427,6 +429,7 @@ public:                                         \
             auto a = next_name();
             auto b = next_name();
             auto ret = cursor->template branch<Instr, Args...>(a, b, std::forward<Args>(args)...);
+            if (cursor != blocks.back()) cursor->branch_existing<vmips::j>(ret.first);
             blocks.push_back(ret.first);
             blocks.push_back(ret.second);
             switch_to(ret.first);
