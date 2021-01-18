@@ -382,7 +382,7 @@ size_t CFGNode::color(const std::shared_ptr<VirtReg> &sp) {
                 vec[i]->id.number = 0;
                 color_to_reg(vec[i]->id.name, colors.first[i]);
             }
-            for(auto i : colors.first) {
+            for (auto i : colors.first) {
                 if (i >= SAVE_START) res.insert(i);
             }
         }
@@ -443,7 +443,7 @@ void BinaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_p
 }
 
 void BinaryImm::output(std::ostream &out) const {
-    out << name() << " " << *lhs << ", " << *rhs << ", " << imm ;
+    out << name() << " " << *lhs << ", " << *rhs << ", " << imm;
 }
 
 Binary::Binary(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs)
@@ -535,7 +535,6 @@ void CFGNode::scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
     }
 
 
-
     for (size_t j = 0; j < instructions.size(); ++j) {
         auto call = dynamic_cast<callfunc *>(instructions[j].get());
         if (!call) continue;
@@ -544,7 +543,7 @@ void CFGNode::scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
             auto k = find_root(i);
             if (k->id.name[0] != 't') continue;
             auto interleaved = (lives.count(i) && lives[i] <= j) || (birth.count(i) && birth[i] >= j);
-            for (auto & m: call->call_with) {
+            for (auto &m: call->call_with) {
                 interleaved = interleaved || i == m;
             }
             if (!interleaved) {
@@ -600,7 +599,7 @@ void UnaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_pt
 }
 
 void UnaryImm::output(std::ostream &out) const {
-    out << name() << " " << target << ", " << imm ;
+    out << name() << " " << target << ", " << imm;
 }
 
 Unconditional::Unconditional(std::weak_ptr<CFGNode> block) : block(std::move(block)) {}
@@ -666,15 +665,24 @@ std::shared_ptr<CFGNode> Function::entry() {
 }
 
 void Function::output(std::ostream &out) const {
+    out << "# gcc headers for " << name << std::endl;
+    out << "\t.text" << std::endl;
+    out << "\t.globl " << name << std::endl;
+    out << "\t.ent " << name << std::endl;
     out << name << ":" << std::endl;
     out << "\t# prologue area" << std::endl;
     if (allocated) {
-        out << "\taddi $sp, $sp, -" << stack_size  << std::endl;
+        out << "\t.set noreorder" << std::endl;
+        out << "\t.frame $sp, " << stack_size << ", $ra" << std::endl;
+        out << "\t.cpload $t9" << std::endl;
+        out << "\t.set reorder " << std::endl;
+        out << "\taddi $sp, $sp, -" << stack_size << std::endl;
+        out << "\t.cprestore " << sub_argc * 4 << std::endl;
         if (save_regs > 0) {
-            auto base = sub_argc * 4;
+            auto base = sub_argc * 4 + 4;
             for (size_t i = 0; i < save_regs; ++i) {
                 out << "\tsw " << "$s" << i << ", "
-                    << base + i * 4  << "($sp)" << std::endl;
+                    << base + i * 4 << "($sp)" << std::endl;
             }
         }
     }
@@ -684,16 +692,17 @@ void Function::output(std::ostream &out) const {
     out << name << "_$$epilogue:" << std::endl;
     out << "\t# epilogue area" << std::endl;
     if (allocated) {
-        out << "\taddi $sp, $sp, " << stack_size  << std::endl;
+        out << "\taddi $sp, $sp, " << stack_size << std::endl;
         if (save_regs > 0) {
             auto base = sub_argc * 4;
             for (size_t i = 0; i < save_regs; ++i) {
                 out << "\tlw " << "$s" << i << ", "
-                    << base + i * 4  << "($sp)" << std::endl;
+                    << base + i * 4 << "($sp)" << std::endl;
             }
         }
     }
     out << "\tjr $ra" << std::endl;
+    out << "\t.end " << name << std::endl;
 }
 
 size_t Function::color() {
@@ -752,7 +761,7 @@ void Function::scan_overlap() {
 }
 
 void Function::handle_alloca() {
-    stack_size += 4 * sub_argc + 4 * save_regs;
+    stack_size += 4 * sub_argc + 4 + 4 * save_regs; // sub args | PIC section | saved registers
     if (has_sub) {
         ra_location.status = MemoryLocation::Assigned;
         ra_location.offset = stack_size;
@@ -771,7 +780,7 @@ void Function::handle_alloca() {
 }
 
 void Function::add_ret() {
-    static auto ending = std::make_shared<text>(std::string {"j "} + this->name + "_$$epilogue");
+    static auto ending = std::make_shared<text>(std::string{"j "} + this->name + "_$$epilogue");
     cursor->instructions.push_back(ending);
 }
 
@@ -838,7 +847,7 @@ void callfunc::output(std::ostream &out) const {
             }
         }
         // load v0
-        if(ret) out << "\tmove " << *ret << ", $v0" << std::endl;
+        if (ret) out << "\tmove " << *ret << ", $v0" << std::endl;
         out << "\t# end calling " << f->name << std::endl;
     } else {
         if (def()) {

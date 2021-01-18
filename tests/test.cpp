@@ -78,7 +78,13 @@ void test_fibonacci() {
     f->output(std::cout);
 
     f->color();
+    std::cout << std::endl;
+    f->output(std::cout);
+
     f->scan_overlap();
+    std::cout << std::endl;
+    f->output(std::cout);
+
     f->handle_alloca();
     std::cout << std::endl;
     f->output(std::cout);

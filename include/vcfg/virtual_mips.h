@@ -4,8 +4,8 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 18
-#define SAVE_START 10
+#define REG_NUM 17
+#define SAVE_START 9
 #include <utility>
 #include <vector>
 #include <string>
@@ -103,7 +103,7 @@ namespace vmips {
     public:
         std::shared_ptr<VirtReg> op0, op1;
         phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
-        virtual void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target);
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
         void output(std::ostream &out) const override;
     };
 
