@@ -349,6 +349,7 @@ public:                                         \
 
     DECLARE(syscall, Instruction);
 
+    DECLARE(beqz, ZeroBranch);
     DECLARE(blez, ZeroBranch);
     DECLARE(ble, CmpBranch);
     DECLARE(bge, CmpBranch);
@@ -471,8 +472,31 @@ public:                                         \
             return cursor->template append<Instr, Args...>(std::forward<Args>(args)...);
         }
 
-        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y);
+        template<typename Instr, typename ...Args>
+        void append_void(Args&& ...args) {
+            auto instr = std::make_shared<Instr>(std::forward<Args>(args)...);
+            cursor->instructions.push_back(instr);
+        }
 
+        template<typename Instr, typename ...Args>
+        std::shared_ptr<CFGNode> new_section_branch(Args&& ...args) {
+            auto node = std::make_shared<CFGNode>(this, next_name());
+            cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
+            this->blocks.push_back(node);
+            switch_to(node);
+            return node;
+        }
+
+        template<typename Instr, typename ...Args>
+        std::shared_ptr<CFGNode> branch_exsiting(const std::shared_ptr<CFGNode>& node, Args&& ...args) {
+            cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
+            switch_to(node);
+            return node;
+        }
+
+
+        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y);
+        std::shared_ptr<CFGNode> new_section();
         void add_phi(const std::shared_ptr<VirtReg>& x, const std::shared_ptr<VirtReg>& y);
 
         template<typename Instr, typename ...Args>

@@ -90,6 +90,35 @@ void test_fibonacci() {
     f->output(std::cout);
 
 }
+
+void test_prefix_sum() {
+    auto f  = std::make_shared<Function>("sum", 1);
+    auto zero = get_special(SpecialReg::zero);
+    f->entry();
+    auto acc = f->append<li>(0);
+    auto current = f->append<move>(get_special(SpecialReg::a0));
+    auto body = f->new_section();
+    auto after = f->new_section_branch<beqz>(current);
+
+    // loop body
+    f->switch_to(body);
+    auto added = f->append<add>(acc, current);
+    auto updated = f->append<addi>(current, -1);
+    f->add_phi(acc, added);
+    f->add_phi(updated, current);
+    f->branch_exsiting<j>(body);
+
+    // loop tail
+    f->switch_to(after);
+    f->assign_special(SpecialReg::v0, acc);
+    f->output(std::cout);
+    std::cout << std::endl;
+    f->color();
+    f->scan_overlap();
+    f->handle_alloca();
+    f->output(std::cout);
+}
 int main() {
-    test_fibonacci();
+    //test_fibonacci();
+    test_prefix_sum();
 }

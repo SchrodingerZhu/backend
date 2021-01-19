@@ -599,7 +599,7 @@ void UnaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_pt
 }
 
 void UnaryImm::output(std::ostream &out) const {
-    out << name() << " " << target << ", " << imm;
+    out << name() << " " << *target << ", " << imm;
 }
 
 Unconditional::Unconditional(std::weak_ptr<CFGNode> block) : block(std::move(block)) {}
@@ -790,6 +790,18 @@ void Function::assign_special(SpecialReg special, std::shared_ptr<VirtReg> reg) 
 
 void Function::assign_special(SpecialReg special, ssize_t value) {
     cursor->instructions.push_back(std::make_shared<addi>(get_special(special), get_special(SpecialReg::zero), value));
+}
+
+std::shared_ptr<CFGNode> Function::new_section() {
+    auto node = std::make_shared<CFGNode>(this, next_name());
+    if(cursor != blocks.back()) {
+        cursor->branch_existing<j>(node);
+    } else {
+        cursor->out_edges.push_back(node);
+    }
+    this->blocks.push_back(node);
+    switch_to(node);
+    return node;
 }
 
 phi::phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1) : op0(std::move(op0)), op1(std::move(op1)) {
