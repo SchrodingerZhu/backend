@@ -8,7 +8,7 @@
 
 using namespace vmips;
 
-char vmips::special_names[(size_t) SpecialReg::ra + 1][8] = {
+char vmips::special_names[(size_t) SpecialReg::s8 + 1][8] = {
         "zero",
         "at",
         "v0",
@@ -22,11 +22,12 @@ char vmips::special_names[(size_t) SpecialReg::ra + 1][8] = {
         "gp",
         "sp",
         "fp",
-        "ra"
+        "ra",
+        "s8"
 };
 
 std::shared_ptr<VirtReg> vmips::get_special(SpecialReg reg) {
-    static std::shared_ptr<VirtReg> specials[(size_t) SpecialReg::ra + 1] = {nullptr};
+    static std::shared_ptr<VirtReg> specials[(size_t) SpecialReg::s8 + 1] = {nullptr};
     if (!specials[(size_t) reg]) {
         specials[(size_t) reg] = VirtReg::create_constant(special_names[(size_t) reg]);
     }
@@ -542,12 +543,8 @@ void CFGNode::scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
         for (auto &i : liveness) {
             auto k = find_root(i);
             if (k->id.name[0] != 't') continue;
-            auto interleaved = (lives.count(i) && lives[i] <= j) || (birth.count(i) && birth[i] >= j);
-            for (auto &m: call->call_with) {
-                interleaved = interleaved || i == m;
-            }
+            auto interleaved = (lives.count(i) && lives[i] < j) || (birth.count(i) && birth[i] >= j);
             if (!interleaved) {
-
                 call->overlap_temp.insert(k);
                 if (!k->overlap_location) {
                     k->overlap_location = function->new_memory(4);
@@ -682,6 +679,9 @@ void Function::output(std::ostream &out) const {
         out << "\t.set reorder " << std::endl;
         out << "\taddi $sp, $sp, -" << stack_size << std::endl;
         out << "\t.cprestore " << pic_location.offset << std::endl;
+        if (has_sub) {
+            out << "\tsw $ra, " << ra_location << std::endl;
+        }
         if (save_regs > 0) {
             auto base = sub_argc * 4 + EXTRA_STACK;
             for (size_t i = 0; i < save_regs; ++i) {
@@ -689,6 +689,8 @@ void Function::output(std::ostream &out) const {
                     << base + i * 4 << "($sp)" << std::endl;
             }
         }
+        out << "\tsw $s8, " << s8_location << std::endl;
+        out << "\tmove $s8, $sp" << std::endl;
     }
     for (auto &i : blocks) {
         i->output(out);
@@ -696,12 +698,17 @@ void Function::output(std::ostream &out) const {
     out << name << "_$$epilogue:" << std::endl;
     out << "\t# epilogue area" << std::endl;
     if (allocated) {
+        out << "\tmove $sp, $s8" << std::endl;
+        out << "\tlw $s8, " << s8_location << std::endl;
         if (save_regs > 0) {
             auto base = sub_argc * 4 + EXTRA_STACK;
             for (size_t i = 0; i < save_regs; ++i) {
                 out << "\tlw " << "$s" << i << ", "
                     << base + i * 4 << "($sp)" << std::endl;
             }
+        }
+        if (has_sub) {
+            out << "\tlw $ra, " << ra_location << std::endl;
         }
         out << "\taddi $sp, $sp, " << stack_size << std::endl;
     }
@@ -724,6 +731,11 @@ Function::Function(std::string name, size_t argc) : name(std::move(name)), argc(
     pic_location.identifier = memory_count++;
     pic_location.size = 4;
     pic_location.base = get_special(SpecialReg::sp);
+
+    s8_location.status = MemoryLocation::Undetermined;
+    s8_location.identifier = memory_count++;
+    s8_location.size = 4;
+    s8_location.base = get_special(SpecialReg::sp);
 }
 
 std::shared_ptr<MemoryLocation> Function::new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t) {
@@ -742,7 +754,7 @@ std::shared_ptr<MemoryLocation> Function::new_memory(size_t size) {
     res->identifier = memory_count++;
     res->status = MemoryLocation::Undetermined;
     res->offset = -1;
-    res->base = get_special(SpecialReg::sp);
+    res->base = get_special(SpecialReg::s8);
     mem_blocks.push_back(res);
     return res;
 }
@@ -778,8 +790,15 @@ void Function::handle_alloca() {
         ra_location.offset = stack_size;
         stack_size += 4;
     }
+
+    pic_location.status = MemoryLocation::Assigned;
     pic_location.offset = stack_size;
     stack_size += pic_location.size;
+
+    s8_location.status = MemoryLocation::Assigned;
+    s8_location.offset = stack_size;
+    stack_size += s8_location.size;
+
     stack_size += (-stack_size & MASK);
 
     for (auto &i : mem_blocks) {
@@ -847,24 +866,18 @@ void callfunc::output(std::ostream &out) const {
             }
         }
 
-        // save ra location
-        out << "\tsw $ra, " << current->ra_location << std::endl;
-
         // save all arguments to stack
         for (size_t i = 0; i < call_with.size(); ++i) {
-            out << "\tsw " << *call_with[i] << ", " << i * 4 << "($sp)" << std::endl;
+            out << "\tsw " << *call_with[i] << ", " << i * 4 << "($s8)" << std::endl;
         }
 
         // load first several arguments into register
         for (size_t i = 0; i < std::min(call_with.size(), (size_t) 4); ++i) {
-            out << "\tlw $a" << i << ", " << i * 4 << "($sp)" << std::endl;
+            out << "\tlw $a" << i << ", " << i * 4 << "($s8)" << std::endl;
         }
 
         // call function
         out << "\tjal " << function.lock()->name << std::endl;
-
-        // recover ra
-        out << "\tlw $ra, " << current->ra_location << std::endl;
 
         // recover overlaps
         for (auto &i : overlap_temp) {
@@ -921,7 +934,7 @@ std::shared_ptr<VirtReg> callfunc::def() const {
 }
 
 bool callfunc::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    if (*ret == *reg) return true;
+    if (ret && *ret == *reg) return true;
     return std::any_of(call_with.begin(), call_with.end(), [&](const std::shared_ptr<VirtReg> &t) { return *t == *reg; });
 }
 

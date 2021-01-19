@@ -4,7 +4,7 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 17
+#define REG_NUM 16
 #define SAVE_START 9
 #define EXTRA_STACK 16
 
@@ -54,6 +54,7 @@ namespace vmips {
         sp,
         fp,
         ra,
+        s8,
     };
 
     struct CFGNode;
@@ -101,7 +102,7 @@ namespace vmips {
         }
     };
 
-    extern char special_names[(size_t) SpecialReg::ra + 1][8];
+    extern char special_names[(size_t) SpecialReg::s8 + 1][8];
 
     std::shared_ptr<VirtReg> get_special(SpecialReg reg);
 
@@ -506,6 +507,7 @@ public:                                         \
         size_t memory_count = 0;
         MemoryLocation ra_location;
         MemoryLocation pic_location;
+        MemoryLocation s8_location;
         std::vector<std::shared_ptr<struct Data>> data_blocks;
         std::vector<std::shared_ptr<MemoryLocation>> mem_blocks;
         bool has_sub = false;
