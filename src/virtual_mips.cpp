@@ -299,6 +299,9 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<M
             instructions[i]->replace(reg, tmp);
             last = tmp;
         } else {
+            if (dynamic_cast<phi*>(instructions[i].get())) {
+                continue;
+            }
             last = nullptr;
             new_instr.push_back(instructions[i]);
         }
