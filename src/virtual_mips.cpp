@@ -285,24 +285,21 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<M
     if (visited) return;
     visited = true;
     std::vector<std::shared_ptr<Instruction>> new_instr;
-    std::shared_ptr<VirtReg> last = nullptr; // consecutive
     for (size_t i = 0; i < instructions.size(); ++i) {
         if (instructions[i]->used_register(reg)) {
-            auto tmp = last ? last : VirtReg::create();
+            auto tmp = VirtReg::create();
             tmp->spilled = true;
             auto load = Memory::create<lw>(tmp, location);
             auto save = Memory::create<sw>(tmp, location);
-            if (!(*instructions[i]->def() == *reg) && !last) new_instr.push_back(load);
+            new_instr.push_back(load);
             new_instr.push_back(instructions[i]);
             if (*instructions[i]->def() == *reg)
                 new_instr.push_back(save);
             instructions[i]->replace(reg, tmp);
-            last = tmp;
         } else {
             if (dynamic_cast<phi*>(instructions[i].get())) {
                 continue;
             }
-            last = nullptr;
             new_instr.push_back(instructions[i]);
         }
     }

@@ -133,7 +133,8 @@ void test_prefix_sum() {
     for (auto & i : regs) { \
         auto k = f->append<add>(res, i); \
        f->add_phi(res, k); \
-    } \
+    }                  \
+    f->assign_special(SpecialReg::v0, res);                   \
     f->output(std::cout); \
     std::cout << std::endl; \
     f->color(); \
