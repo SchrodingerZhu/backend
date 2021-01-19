@@ -147,6 +147,6 @@ void test_prefix_sum() {
 int main() {
     test_fibonacci();
     test_prefix_sum();
-    MANY_REGS(9);
-    MANY_REGS(20);
+    MANY_REGS(13);
+    //MANY_REGS(20);
 }

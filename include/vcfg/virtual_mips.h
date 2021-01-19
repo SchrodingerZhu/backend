@@ -6,6 +6,8 @@
 #define BACKEND_VIRTUAL_MIPS_H
 #define REG_NUM 17
 #define SAVE_START 9
+#define EXTRA_STACK 16
+
 #include <utility>
 #include <vector>
 #include <string>
@@ -18,6 +20,24 @@
 #include <sstream>
 
 namespace vmips {
+
+    struct Data {
+        std::string name;
+        bool read_only;
+
+        Data(std::string name, bool read_only);
+        virtual const char *type_label() const = 0;
+
+        virtual void output(std::ostream &out) const = 0;
+
+        template<class Type, class ...Args>
+        inline static std::shared_ptr<Data> create(bool read_only, Args&&... args) {
+            static std::atomic_size_t counter { 0 };
+            std::stringstream ss;
+            ss << "data_section_$$" << counter.fetch_add(1);
+            return std::make_shared<Type>(ss.str(), read_only, std::forward<Args>(args)...);
+        }
+    };
 
     enum class SpecialReg {
         zero,
@@ -41,17 +61,18 @@ namespace vmips {
 
     struct MemoryLocation {
         size_t identifier = -1;
-        size_t offset {};
-        size_t size {};
-        std::shared_ptr<class VirtReg> base {};
+        size_t offset{};
+        size_t size{};
+        std::shared_ptr<class VirtReg> base{};
         enum Status {
             Assigned,
             Undetermined,
             Static
-        } status {};
+        } status{};
     };
 
     std::shared_ptr<class VirtReg> find_root(std::shared_ptr<class VirtReg> x);
+
     // must be SSA
     class VirtReg {
         static std::atomic_size_t GLOBAL;
@@ -75,14 +96,14 @@ namespace vmips {
 
         friend std::ostream &operator<<(std::ostream &, const VirtReg &);
 
-        bool operator==(const VirtReg& that) const {
+        bool operator==(const VirtReg &that) const {
             return id.number == that.id.number || find_root(parent.lock()) == find_root(that.parent.lock());
         }
     };
 
-    extern char special_names[(size_t)SpecialReg::ra + 1][8];
-    std::shared_ptr<VirtReg> get_special(SpecialReg reg);
+    extern char special_names[(size_t) SpecialReg::ra + 1][8];
 
+    std::shared_ptr<VirtReg> get_special(SpecialReg reg);
 
 
     void unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y);
@@ -107,8 +128,11 @@ namespace vmips {
     class phi : public Instruction {
     public:
         std::shared_ptr<VirtReg> op0, op1;
+
         phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
+
         void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
+
         void output(std::ostream &out) const override;
     };
 
@@ -230,13 +254,14 @@ namespace vmips {
 
     struct callfunc : public Instruction {
         Function *current;
-        std::unordered_set<std::shared_ptr<VirtReg>> overlap_temp {};
+        std::unordered_set<std::shared_ptr<VirtReg>> overlap_temp{};
         std::weak_ptr<Function> function;
         std::vector<std::shared_ptr<VirtReg>> call_with;
         std::shared_ptr<VirtReg> ret;
         bool scanned = false;
 
-        callfunc(std::shared_ptr<VirtReg> ret, Function * current, std::weak_ptr<Function> function, std::vector<std::shared_ptr<VirtReg>> call_with);
+        callfunc(std::shared_ptr<VirtReg> ret, Function *current, std::weak_ptr<Function> function,
+                 std::vector<std::shared_ptr<VirtReg>> call_with);
 
         void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
@@ -253,28 +278,40 @@ namespace vmips {
     class Unconditional : public Instruction {
     public:
         std::weak_ptr<CFGNode> block;
+
         explicit Unconditional(std::weak_ptr<CFGNode> block);
+
         void output(std::ostream &) const override;
+
         std::shared_ptr<CFGNode> branch() override;
+
         std::shared_ptr<VirtReg> def() const override;
     };
 
     class ZeroBranch : public Unary {
     public:
         std::weak_ptr<CFGNode> block;
+
         ZeroBranch(std::weak_ptr<CFGNode> block, std::shared_ptr<VirtReg> check);
+
         void output(std::ostream &) const override;
+
         std::shared_ptr<CFGNode> branch() override;
+
         std::shared_ptr<VirtReg> def() const override;
     };
 
     class CmpBranch : public Binary {
     public:
         std::weak_ptr<CFGNode> block;
+
         CmpBranch(std::weak_ptr<CFGNode> block,
                   std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
+
         void output(std::ostream &) const override;
+
         std::shared_ptr<CFGNode> branch() override;
+
         std::shared_ptr<VirtReg> def() const override;
     };
 
@@ -357,13 +394,17 @@ public:                                         \
     DECLARE(syscall, Instruction);
 
     DECLARE(beqz, ZeroBranch);
+
     DECLARE(blez, ZeroBranch);
+
     DECLARE(ble, CmpBranch);
+
     DECLARE(bge, CmpBranch);
 
     class jr : public Unary {
     public:
         std::shared_ptr<VirtReg> def() const override;
+
         jr(std::shared_ptr<VirtReg> reg);
     };
 
@@ -371,21 +412,34 @@ public:                                         \
         std::string context;
     public:
         explicit text(std::string context);
-        const char * name() const override;
-        void output(std::ostream& out) const override;
+
+        const char *name() const override;
+
+        void output(std::ostream &out) const override;
+    };
+
+    class la : public Unary {
+        std::shared_ptr<Data> data;
+    public:
+        explicit la(std::shared_ptr<VirtReg> reg,  std::shared_ptr<Data> data);
+
+        const char *name() const override;
+
+        void output(std::ostream &out) const override;
     };
 
     // upward links are broken down
 
     struct CFGNode {
-        Function* function;
+        Function *function;
         std::string label;
         bool visited = false;
-        std::vector<std::shared_ptr<Instruction>> instructions {};
-        std::vector<std::weak_ptr<CFGNode>> out_edges {}; // at most two
-        std::unordered_map<std::shared_ptr<VirtReg>, size_t> lives {}; // instructions.size  means live through
+        std::vector<std::shared_ptr<Instruction>> instructions{};
+        std::vector<std::weak_ptr<CFGNode>> out_edges{}; // at most two
+        std::unordered_map<std::shared_ptr<VirtReg>, size_t> lives{}; // instructions.size  means live through
 
-        CFGNode(Function* function, std::string name);
+        CFGNode(Function *function, std::string name);
+
         void dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs);
 
         void dfs_reset();
@@ -394,7 +448,7 @@ public:                                         \
 
         void generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &liveness);
 
-        void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation>& location);
+        void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation> &location);
 
         size_t color(const std::shared_ptr<VirtReg> &sp);
 
@@ -403,7 +457,7 @@ public:                                         \
         void output(std::ostream &out);
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr<VirtReg> append(Args&& ...args) {
+        std::shared_ptr<VirtReg> append(Args &&...args) {
             auto ret = VirtReg::create();
             auto instr = std::make_shared<Instr>(ret, std::forward<Args>(args)...);
             instructions.push_back(instr);
@@ -415,14 +469,14 @@ public:                                         \
         }
 
         template<typename Instr, typename ...Args>
-        void branch_existing(const std::shared_ptr<CFGNode>& node, Args&&... args) {
+        void branch_existing(const std::shared_ptr<CFGNode> &node, Args &&... args) {
             out_edges.push_back(node);
             auto instr = std::make_shared<Instr>(node, std::forward<Args>(args)...);
             instructions.push_back(instr);
         }
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr<CFGNode> branch_single(std::string name, Args&&... args) {
+        std::shared_ptr<CFGNode> branch_single(std::string name, Args &&... args) {
             auto node = std::make_shared<CFGNode>(name);
             auto instr = std::make_shared<Instr>(node, std::forward<Args>(args)...);
             instructions.push_back(instr);
@@ -431,7 +485,8 @@ public:                                         \
         }
 
         template<typename Instr, typename ...Args>
-        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(std::string next, std::string target, Args&&... args) {
+        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>>
+        branch(std::string next, std::string target, Args &&... args) {
             auto a = std::make_shared<CFGNode>(function, next);
             auto b = std::make_shared<CFGNode>(function, target);
             auto instr = std::make_shared<Instr>(b, std::forward<Args>(args)...);
@@ -443,7 +498,6 @@ public:                                         \
     };
 
 
-
     struct Function {
         std::string name;
         static const constexpr size_t PADDING = 8;
@@ -451,6 +505,8 @@ public:                                         \
         size_t count = 0;
         size_t memory_count = 0;
         MemoryLocation ra_location;
+        MemoryLocation pic_location;
+        std::vector<std::shared_ptr<struct Data>> data_blocks;
         std::vector<std::shared_ptr<MemoryLocation>> mem_blocks;
         bool has_sub = false;
         bool allocated = false;
@@ -466,6 +522,7 @@ public:                                         \
         std::shared_ptr<CFGNode> cursor;
 
         Function(std::string name, size_t argc);
+
         std::string next_name();
 
         std::shared_ptr<MemoryLocation> new_memory(size_t size);
@@ -475,18 +532,18 @@ public:                                         \
         std::shared_ptr<CFGNode> entry();
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr<VirtReg> append(Args&& ...args) {
+        std::shared_ptr<VirtReg> append(Args &&...args) {
             return cursor->template append<Instr, Args...>(std::forward<Args>(args)...);
         }
 
         template<typename Instr, typename ...Args>
-        void append_void(Args&& ...args) {
+        void append_void(Args &&...args) {
             auto instr = std::make_shared<Instr>(std::forward<Args>(args)...);
             cursor->instructions.push_back(instr);
         }
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr<CFGNode> new_section_branch(Args&& ...args) {
+        std::shared_ptr<CFGNode> new_section_branch(Args &&...args) {
             auto node = std::make_shared<CFGNode>(this, next_name());
             cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
             this->blocks.push_back(node);
@@ -495,19 +552,21 @@ public:                                         \
         }
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr<CFGNode> branch_exsiting(const std::shared_ptr<CFGNode>& node, Args&& ...args) {
+        std::shared_ptr<CFGNode> branch_exsiting(const std::shared_ptr<CFGNode> &node, Args &&...args) {
             cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
             switch_to(node);
             return node;
         }
 
 
-        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode>& x, const std::shared_ptr<CFGNode>& y);
+        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode> &x, const std::shared_ptr<CFGNode> &y);
+
         std::shared_ptr<CFGNode> new_section();
-        void add_phi(const std::shared_ptr<VirtReg>& x, const std::shared_ptr<VirtReg>& y);
+
+        void add_phi(const std::shared_ptr<VirtReg> &x, const std::shared_ptr<VirtReg> &y);
 
         template<typename Instr, typename ...Args>
-        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(Args&&... args) {
+        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(Args &&... args) {
             auto a = next_name();
             auto b = next_name();
             auto ret = cursor->template branch<Instr, Args...>(a, b, std::forward<Args>(args)...);
@@ -519,33 +578,49 @@ public:                                         \
         }
 
         void switch_to(const std::shared_ptr<CFGNode> &target);
+
         template<typename ...Args>
-        std::shared_ptr<VirtReg> call(std::weak_ptr<Function> target, Args&&... args) {
+        std::shared_ptr<VirtReg> call(std::weak_ptr<Function> target, Args &&... args) {
             auto ret = VirtReg::create();
             has_sub = true;
             sub_argc = std::max(sub_argc, target.lock()->argc);
-            auto calling = std::make_shared<callfunc>(ret, this, std::move(target), std::vector<std::shared_ptr<VirtReg>> {std::forward<Args>(args)...});
+            auto calling = std::make_shared<callfunc>(ret, this, std::move(target),
+                                                      std::vector<std::shared_ptr<VirtReg>>{
+                                                              std::forward<Args>(args)...});
             cursor->instructions.push_back(calling);
             return ret;
         }
 
         template<typename ...Args>
-        void call_void(std::weak_ptr<Function> target, Args&&... args) {
+        void call_void(std::weak_ptr<Function> target, Args &&... args) {
             has_sub = true;
             sub_argc = std::max(sub_argc, target.lock()->argc);
-            auto calling = std::make_shared<callfunc>(nullptr, this, std::move(target), std::vector<std::shared_ptr<VirtReg>> {std::forward<Args>(args)...});
+            auto calling = std::make_shared<callfunc>(nullptr, this, std::move(target),
+                                                      std::vector<std::shared_ptr<VirtReg>>{
+                                                              std::forward<Args>(args)...});
             cursor->instructions.push_back(calling);
         }
 
-        std::vector<size_t> final_regs;
-
         size_t color();
+
         void scan_overlap();
+
         void output(std::ostream &) const;
+
         void handle_alloca();
+
         void add_ret();
+
         void assign_special(SpecialReg special, std::shared_ptr<VirtReg> reg);
+
         void assign_special(SpecialReg special, ssize_t value);
+
+        template<class Type, typename ...Args>
+        std::shared_ptr<struct Data> create_data(bool read_only, Args&&... args) {
+            auto data = Data::create<Type>(read_only, std::forward<Args>(args)...);
+            data_blocks.push_back(data);
+            return data;
+        }
     };
 
     template<class T>
@@ -580,5 +655,145 @@ public:                                         \
 
     std::ostream &operator<<(std::ostream &out, const MemoryLocation &location);
 
-}
+
+
+    void escaped_string(std::ostream &out, const std::string& s) {
+        for (auto ch : s) {
+            switch (ch) {
+                case '\'':
+                    out << "\\'";
+                    break;
+
+                case '\"':
+                    out << "\\\"";
+                    break;
+
+                case '\?':
+                    out << "\\?";
+                    break;
+
+                case '\\':
+                    out << "\\\\";
+                    break;
+
+                case '\a':
+                    out << "\\a";
+                    break;
+
+                case '\b':
+                    out << "\\b";
+                    break;
+
+                case '\f':
+                    out << "\\f";
+                    break;
+
+                case '\n':
+                    out << "\\n";
+                    break;
+
+                case '\r':
+                    out << "\\r";
+                    break;
+
+                case '\t':
+                    out << "\\t";
+                    break;
+
+                case '\v':
+                    out << "\\v";
+                    break;
+
+                default:
+                    out << ch;
+            }
+        }
+    }
+
+
+    static inline void char_wrap(std::ostream &out, char x) {
+        out << "'";
+        char data[2] = {x, 0};
+        escaped_string(out, data);
+        out << "'";
+    }
+
+    static inline void str_wrap(std::ostream &out, std::string name) {
+        out << '"';
+        escaped_string(out, name);
+        out << '"';
+    }
+
+    template <class T>
+    static inline void normal(std::ostream &out, const T& x) {
+        out << x;
+    }
+
+
+#define DECLARE_DATA(Name, ValueType) \
+    struct Name : public Data {               \
+         std::vector<ValueType> value;              \
+         template <typename ...Args>\
+         explicit Name(std::string name, bool read_only, Args&&... args) : Data(std::move(name), read_only), value(std::forward<Args>(args)...) { \
+         }                                                                                                       \
+         const char * type_label() const override; \
+         void output(std::ostream &out) const override; \
+    };
+
+#define IMPLEMENT_DATA(Name, Align, Process) \
+         const char * vmips::Name::type_label() const { \
+            return "." #Name;                   \
+         }                             \
+         void vmips::Name::output(std::ostream &out) const {                                                                                    \
+                                              \
+            out << (read_only ? "\t.rdata" : "\t.data") << std::endl;                                                                       \
+            if (Align > 0) {                                                                                                                \
+                out << "\t.align " << Align << std::endl;                                                                                   \
+            }                                 \
+            out << name << ": " << std::endl;\
+            out << "\t" << type_label() << " ";         \
+            for(auto i = 0; i < value.size(); ++i) {                                 \
+                Process(out, value[i]);         \
+                if(i + 1 < value.size()) out << " ";                             \
+            }                                 \
+            out << std::endl;                                          \
+         }\
+
+    DECLARE_DATA(byte, char);
+    DECLARE_DATA(ascii, std::string);
+    DECLARE_DATA(asciiz, std::string);
+    DECLARE_DATA(word, int32_t);
+    DECLARE_DATA(hword, int64_t);
+    DECLARE_DATA(space, size_t);
+
+    struct Module {
+        std::vector<std::shared_ptr<Data>> global_data_section;
+        std::vector<std::shared_ptr<Function>> functions;
+        std::vector<std::shared_ptr<Function>> externs;
+        std::string name;
+
+        Module(std::string name);
+        void output(std::ostream &out) const;
+
+        std::shared_ptr<Function> create_function(std::string fname, size_t argc);
+
+        std::shared_ptr<Function> create_extern(std::string fname, size_t argc);
+
+        void finalize() {
+            for (auto &i : functions) {
+                i->color();
+                i->scan_overlap();
+                i->handle_alloca();
+            }
+        }
+
+        template<class Type, typename ...Args>
+        std::shared_ptr<struct Data> create_data(bool read_only, Args&&... args) {
+            auto data = Data::create<Type>(read_only, std::forward<Args>(args)...);
+            global_data_section.push_back(data);
+            return data;
+        }
+
+    };
+};
 #endif //BACKEND_VIRTUAL_MIPS_H

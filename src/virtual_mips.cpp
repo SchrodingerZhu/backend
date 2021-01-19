@@ -665,6 +665,10 @@ std::shared_ptr<CFGNode> Function::entry() {
 }
 
 void Function::output(std::ostream &out) const {
+    out << "# data sections of function " << name << std::endl;
+    for (auto & i : data_blocks) {
+        i->output(out);
+    }
     out << "# gcc headers for " << name << std::endl;
     out << "\t.text" << std::endl;
     out << "\t.globl " << name << std::endl;
@@ -677,9 +681,9 @@ void Function::output(std::ostream &out) const {
         out << "\t.cpload $t9" << std::endl;
         out << "\t.set reorder " << std::endl;
         out << "\taddi $sp, $sp, -" << stack_size << std::endl;
-        out << "\t.cprestore " << sub_argc * 4 << std::endl;
+        out << "\t.cprestore " << pic_location.offset << std::endl;
         if (save_regs > 0) {
-            auto base = sub_argc * 4 + 4;
+            auto base = sub_argc * 4 + EXTRA_STACK;
             for (size_t i = 0; i < save_regs; ++i) {
                 out << "\tsw " << "$s" << i << ", "
                     << base + i * 4 << "($sp)" << std::endl;
@@ -692,14 +696,14 @@ void Function::output(std::ostream &out) const {
     out << name << "_$$epilogue:" << std::endl;
     out << "\t# epilogue area" << std::endl;
     if (allocated) {
-        out << "\taddi $sp, $sp, " << stack_size << std::endl;
         if (save_regs > 0) {
-            auto base = sub_argc * 4;
+            auto base = sub_argc * 4 + EXTRA_STACK;
             for (size_t i = 0; i < save_regs; ++i) {
                 out << "\tlw " << "$s" << i << ", "
                     << base + i * 4 << "($sp)" << std::endl;
             }
         }
+        out << "\taddi $sp, $sp, " << stack_size << std::endl;
     }
     out << "\tjr $ra" << std::endl;
     out << "\t.end " << name << std::endl;
@@ -715,6 +719,11 @@ Function::Function(std::string name, size_t argc) : name(std::move(name)), argc(
     ra_location.identifier = memory_count++;
     ra_location.size = 4;
     ra_location.base = get_special(SpecialReg::sp);
+
+    pic_location.status = MemoryLocation::Undetermined;
+    pic_location.identifier = memory_count++;
+    pic_location.size = 4;
+    pic_location.base = get_special(SpecialReg::sp);
 }
 
 std::shared_ptr<MemoryLocation> Function::new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t) {
@@ -761,13 +770,18 @@ void Function::scan_overlap() {
 }
 
 void Function::handle_alloca() {
-    stack_size = 4 * sub_argc + 4 + 4 * save_regs; // sub args | PIC section | saved registers
+    stack_size = 4 * sub_argc + EXTRA_STACK + 4 * save_regs; // sub args | PIC section | saved registers
+
+    // ra and pic
     if (has_sub) {
         ra_location.status = MemoryLocation::Assigned;
         ra_location.offset = stack_size;
         stack_size += 4;
     }
+    pic_location.offset = stack_size;
+    stack_size += pic_location.size;
     stack_size += (-stack_size & MASK);
+
     for (auto &i : mem_blocks) {
         if (i->status == MemoryLocation::Undetermined) {
             i->status = MemoryLocation::Assigned;
@@ -803,6 +817,8 @@ std::shared_ptr<CFGNode> Function::new_section() {
     switch_to(node);
     return node;
 }
+
+
 
 phi::phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1) : op0(std::move(op0)), op1(std::move(op1)) {
 
@@ -923,4 +939,52 @@ const char *text::name() const {
 
 void text::output(std::ostream &out) const {
     out << name();
+}
+
+Data::Data(std::string name, bool read_only) : name(std::move(name)), read_only(read_only) {
+
+}
+
+IMPLEMENT_DATA(byte, 0, char_wrap);
+IMPLEMENT_DATA(ascii, 0, str_wrap);
+IMPLEMENT_DATA(asciiz, 0, str_wrap);
+IMPLEMENT_DATA(word, 2, normal);
+IMPLEMENT_DATA(hword, 1, normal);
+IMPLEMENT_DATA(space, 0, normal);
+
+Module::Module(std::string name) : name(std::move(name)){}
+
+std::shared_ptr<Function> Module::create_function(std::string fname, size_t argc) {
+    auto function = std::make_shared<Function>(std::move(fname), argc);
+    function->entry();
+    functions.push_back(function);
+    return function;
+}
+
+void Module::output(std::ostream &out) const {
+    out << "# Module : " << name << std::endl;
+    for (auto &i : externs) {
+        out << "\t.extern " << i->name << std::endl;
+    }
+    for (auto &i : global_data_section) {
+        i->output(out);
+    }
+    for (auto &i : functions) {
+        i->output(out);
+    }
+}
+
+std::shared_ptr<Function> Module::create_extern(std::string fname, size_t argc) {
+    externs.push_back(std::make_shared<Function>(std::move(fname), argc));
+    return externs.back();
+}
+
+la::la(std::shared_ptr<VirtReg> reg, std::shared_ptr<Data> data) : Unary(std::move(reg)), data(std::move(data)) {}
+
+const char *la::name() const {
+    return "la";
+}
+
+void la::output(std::ostream &out) const {
+    out << name() << " " << *this->target << ", " << data->name;
 }
