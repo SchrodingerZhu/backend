@@ -617,7 +617,7 @@ public:                                         \
 
         template<class Type, typename ...Args>
         std::shared_ptr<struct Data> create_data(bool read_only, Args&&... args) {
-            auto data = Data::create<Type>(read_only, std::forward<Args>(args)...);
+            auto data = Data::create<Type>(read_only, std::vector<typename Type::data_type> {std::forward<Args>(args)...});
             data_blocks.push_back(data);
             return data;
         }
@@ -731,7 +731,8 @@ public:                                         \
 
 
 #define DECLARE_DATA(Name, ValueType) \
-    struct Name : public Data {               \
+    struct Name : public Data {       \
+         using data_type = ValueType;                             \
          std::vector<ValueType> value;              \
          template <typename ...Args>\
          explicit Name(std::string name, bool read_only, Args&&... args) : Data(std::move(name), read_only), value(std::forward<Args>(args)...) { \
