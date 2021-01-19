@@ -674,7 +674,7 @@ void Function::output(std::ostream &out) const {
     out << "\t# prologue area" << std::endl;
     if (allocated) {
         out << "\t.set noreorder" << std::endl;
-        out << "\t.frame $sp, " << stack_size << ", $ra" << std::endl;
+        out << "\t.frame $s8, " << stack_size << ", $ra" << std::endl;
         out << "\t.cpload $t9" << std::endl;
         out << "\t.set reorder " << std::endl;
         out << "\taddi $sp, $sp, -" << stack_size << std::endl;
