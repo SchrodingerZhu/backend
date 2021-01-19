@@ -118,7 +118,34 @@ void test_prefix_sum() {
     f->handle_alloca();
     f->output(std::cout);
 }
+
+#define MANY_REGS(NUM) \
+{ \
+    auto f  = std::make_shared<Function>("registers_" #NUM, 1); \
+    auto zero = get_special(SpecialReg::zero); \
+    f->entry(); \
+    auto acc = f->append<li>(0); \
+    std::vector<std::shared_ptr<VirtReg>> regs; \
+    for(auto i = 0; i < NUM; ++i) { \
+        regs.emplace_back(f->append<addi>(get_special(SpecialReg::a0), i)); \
+    } \
+    auto res = f->append<li>(0); \
+    for (auto & i : regs) { \
+        auto k = f->append<add>(res, i); \
+       f->add_phi(res, k); \
+    } \
+    f->output(std::cout); \
+    std::cout << std::endl; \
+    f->color(); \
+    f->scan_overlap(); \
+    f->handle_alloca(); \
+    f->output(std::cout); \
+}
+
+
 int main() {
-    //test_fibonacci();
+    test_fibonacci();
     test_prefix_sum();
+    MANY_REGS(9);
+    MANY_REGS(20);
 }

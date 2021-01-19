@@ -145,13 +145,13 @@ std::shared_ptr<VirtReg> Ternary::def() const {
 }
 
 bool Ternary::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return lhs == reg || op0 == reg || op1 == reg;
+    return *lhs == *reg || *op0 == *reg || *op1 == *reg;
 }
 
 void Ternary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (lhs == reg) lhs = target;
-    if (op0 == reg) op0 = target;
-    if (op1 == reg) op1 = target;
+    if (*lhs == *reg) lhs = target;
+    if (*op0 == *reg) op0 = target;
+    if (*op1 == *reg) op1 = target;
 }
 
 void Ternary::output(std::ostream &out) const {
@@ -292,9 +292,9 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<M
             tmp->spilled = true;
             auto load = Memory::create<lw>(tmp, location);
             auto save = Memory::create<sw>(tmp, location);
-            if (instructions[i]->def() != reg && !last) new_instr.push_back(load);
+            if (!(*instructions[i]->def() == *reg) && !last) new_instr.push_back(load);
             new_instr.push_back(instructions[i]);
-            if (instructions[i]->def() == reg)
+            if (*instructions[i]->def() == *reg)
                 new_instr.push_back(save);
             instructions[i]->replace(reg, tmp);
             last = tmp;
@@ -408,12 +408,12 @@ std::shared_ptr<VirtReg> Memory::def() const {
 }
 
 bool Memory::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return target == reg || location->base == reg;
+    return *target == *reg || *location->base == *reg;
 }
 
 void Memory::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (this->target == reg) { this->target = target; }
-    if (this->location->base == reg) { location->base = target; }
+    if (*this->target == *reg) { this->target = target; }
+    if (*this->location->base == *reg) { location->base = target; }
 }
 
 void Memory::output(std::ostream &out) const {
@@ -434,12 +434,12 @@ std::shared_ptr<VirtReg> BinaryImm::def() const {
 }
 
 bool BinaryImm::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return lhs == reg || rhs == reg;
+    return *lhs == *reg || *rhs == *reg;
 }
 
 void BinaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (lhs == reg) lhs = target;
-    if (rhs == reg) rhs = target;
+    if (*lhs == *reg) lhs = target;
+    if (*rhs == *reg) rhs = target;
 }
 
 void BinaryImm::output(std::ostream &out) const {
@@ -465,11 +465,11 @@ std::shared_ptr<VirtReg> Unary::def() const {
 }
 
 bool Unary::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return target == reg;
+    return *target == *reg;
 }
 
 void Unary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (this->target == reg) this->target = target;
+    if (*this->target == *reg) this->target = target;
 }
 
 void Unary::output(std::ostream &out) const {
@@ -486,12 +486,12 @@ std::shared_ptr<VirtReg> Binary::def() const {
 }
 
 bool Binary::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return lhs == reg || rhs == reg;
+    return *lhs == *reg || *rhs == *reg;
 }
 
 void Binary::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (lhs == reg) lhs = target;
-    if (rhs == reg) rhs = target;
+    if (*lhs == *reg) lhs = target;
+    if (*rhs == *reg) rhs = target;
 }
 
 void Binary::output(std::ostream &out) const {
@@ -591,11 +591,11 @@ std::shared_ptr<VirtReg> UnaryImm::def() const {
 }
 
 bool UnaryImm::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    return target == reg;
+    return *target == *reg;
 }
 
 void UnaryImm::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (this->target == reg) this->target = target;
+    if (*this->target == *reg) this->target = target;
 }
 
 void UnaryImm::output(std::ostream &out) const {
@@ -761,21 +761,21 @@ void Function::scan_overlap() {
 }
 
 void Function::handle_alloca() {
-    stack_size += 4 * sub_argc + 4 + 4 * save_regs; // sub args | PIC section | saved registers
+    stack_size = 4 * sub_argc + 4 + 4 * save_regs; // sub args | PIC section | saved registers
     if (has_sub) {
         ra_location.status = MemoryLocation::Assigned;
         ra_location.offset = stack_size;
         stack_size += 4;
     }
-    stack_size += PADDING - (stack_size & MASK);
+    stack_size += (-stack_size & MASK);
     for (auto &i : mem_blocks) {
         if (i->status == MemoryLocation::Undetermined) {
             i->status = MemoryLocation::Assigned;
             i->offset = stack_size;
             stack_size += i->size;
-            stack_size += PADDING - (stack_size & MASK); // align
         }
     }
+    stack_size += (-stack_size & MASK); // align
     allocated = true;
 }
 
@@ -813,8 +813,8 @@ void phi::output(std::ostream &out) const {
 }
 
 void phi::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (op0 == reg) op0 = target;
-    if (op1 == reg) op1 = target;
+    if (*op0 == *reg) op0 = target;
+    if (*op1 == *reg) op1 = target;
 }
 
 void callfunc::output(std::ostream &out) const {
@@ -879,9 +879,9 @@ void callfunc::output(std::ostream &out) const {
 }
 
 void callfunc::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
-    if (ret == reg) ret = target;
+    if (*ret == *reg) ret = target;
     for (auto &i : call_with) {
-        if (i == reg) {
+        if (*i == *reg) {
             i = target;
         }
     }
@@ -905,8 +905,8 @@ std::shared_ptr<VirtReg> callfunc::def() const {
 }
 
 bool callfunc::used_register(const std::shared_ptr<VirtReg> &reg) const {
-    if (ret == reg) return true;
-    return std::any_of(call_with.begin(), call_with.end(), [&](const std::shared_ptr<VirtReg> &t) { return t == reg; });
+    if (*ret == *reg) return true;
+    return std::any_of(call_with.begin(), call_with.end(), [&](const std::shared_ptr<VirtReg> &t) { return *t == *reg; });
 }
 
 std::shared_ptr<VirtReg> jr::def() const {

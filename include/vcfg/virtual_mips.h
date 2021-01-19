@@ -51,6 +51,7 @@ namespace vmips {
         } status {};
     };
 
+    std::shared_ptr<class VirtReg> find_root(std::shared_ptr<class VirtReg> x);
     // must be SSA
     class VirtReg {
         static std::atomic_size_t GLOBAL;
@@ -73,12 +74,16 @@ namespace vmips {
         static std::shared_ptr<VirtReg> create_constant(const char *name);
 
         friend std::ostream &operator<<(std::ostream &, const VirtReg &);
+
+        bool operator==(const VirtReg& that) const {
+            return id.number == that.id.number || find_root(parent.lock()) == find_root(that.parent.lock());
+        }
     };
 
     extern char special_names[(size_t)SpecialReg::ra + 1][8];
     std::shared_ptr<VirtReg> get_special(SpecialReg reg);
 
-    std::shared_ptr<VirtReg> find_root(std::shared_ptr<VirtReg> x);
+
 
     void unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y);
 
@@ -127,6 +132,8 @@ namespace vmips {
         void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
+
+
     };
 
     class BinaryImm : public Instruction {
