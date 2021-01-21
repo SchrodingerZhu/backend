@@ -143,10 +143,28 @@ void test_prefix_sum() {
     f->output(std::cout); \
 }
 
+void test_add() {
+    auto f  = std::make_shared<Function>("add", 1);
+    auto zero = get_special(SpecialReg::zero);
+    f->entry();
+    auto t0 = f->append<add>(get_special(SpecialReg::a0), get_special(SpecialReg::a1));
+    auto t1 = f->append<add>(t0, get_special(SpecialReg::a2));
+    auto t2 = f->append<add>(t1, get_special(SpecialReg::a3));
+    auto m0 = f->append<lw>(f->argument(4));
+    auto t3 = f->append<add>(t2, m0);
+    auto m1 = f->append<lw>(f->argument(5));
+    auto t4 = f->append<add>(t3, m1);
+    f->assign_special(SpecialReg::v0, t4);
+    f->color();
+    f->scan_overlap();
+    f->handle_alloca();
+    f->output(std::cout);
+}
 
 int main() {
-    test_fibonacci();
-    test_prefix_sum();
-    MANY_REGS(13);
+    //test_fibonacci();
+    test_add();
+    //test_prefix_sum();
+    //MANY_REGS(13);
     //MANY_REGS(20);
 }

@@ -69,7 +69,10 @@ std::ostream &vmips::operator<<(std::ostream &out, const VirtReg &reg) {
 }
 
 std::ostream &vmips::operator<<(std::ostream &out, const MemoryLocation &location) {
-    if (location.status == MemoryLocation::Assigned || location.status == MemoryLocation::Static) {
+    if (location.status == MemoryLocation::Argument) {
+        out << location.offset * 4 + location.function->stack_size << "(" << *location.base << ")";
+    }
+    else if (location.status == MemoryLocation::Assigned || location.status == MemoryLocation::Static) {
         out << location.offset << "(" << *location.base << ")";
     } else {
         out << "unallocated<" << location.identifier << ">";
@@ -837,6 +840,15 @@ std::shared_ptr<CFGNode> Function::new_section() {
     return node;
 }
 
+std::shared_ptr<MemoryLocation> Function::argument(size_t offset) {
+    auto loc = std::make_shared<MemoryLocation>();
+    loc->status = MemoryLocation::Argument;
+    loc->offset = offset;
+    loc->function = this;
+    loc->base = get_special(SpecialReg::s8);
+    loc->size = 4;
+    return loc;
+}
 
 
 phi::phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1) : op0(std::move(op0)), op1(std::move(op1)) {

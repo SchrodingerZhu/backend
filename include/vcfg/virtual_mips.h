@@ -4,7 +4,7 @@
 
 #ifndef BACKEND_VIRTUAL_MIPS_H
 #define BACKEND_VIRTUAL_MIPS_H
-#define REG_NUM 16
+#define REG_NUM 17
 #define SAVE_START 9
 #define EXTRA_STACK 16
 
@@ -64,11 +64,13 @@ namespace vmips {
         size_t identifier = -1;
         size_t offset{};
         size_t size{};
+        Function* function;
         std::shared_ptr<class VirtReg> base{};
         enum Status {
             Assigned,
             Undetermined,
-            Static
+            Static,
+            Argument
         } status{};
     };
 
@@ -528,6 +530,8 @@ public:                                         \
         std::string next_name();
 
         std::shared_ptr<MemoryLocation> new_memory(size_t size);
+
+        std::shared_ptr<MemoryLocation> argument(size_t index);
 
         std::shared_ptr<MemoryLocation> new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t);
 
