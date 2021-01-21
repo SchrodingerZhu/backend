@@ -30,6 +30,7 @@ void DecHeap::bubble_up(size_t idx) {
 
 void DecHeap::decrease(size_t node, size_t delta) {
     auto idx = idx_map[node];
+    if (idx == -1) return;
     heap[idx].first -= delta;
     bubble_up(idx);
 }
