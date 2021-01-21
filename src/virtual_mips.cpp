@@ -1004,6 +1004,7 @@ std::shared_ptr<Function> Module::create_extern(std::string fname, size_t argc) 
     return externs.back();
 }
 
+
 la::la(std::shared_ptr<VirtReg> reg, std::shared_ptr<Data> data) : Unary(std::move(reg)), data(std::move(data)) {}
 
 const char *la::name() const {
@@ -1012,4 +1013,16 @@ const char *la::name() const {
 
 void la::output(std::ostream &out) const {
     out << name() << " " << *this->target << ", " << data->name;
+}
+
+address::address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data) : Unary(std::move(reg)), data(std::move(data)) {
+
+}
+
+void address::output(std::ostream &out) const {
+    if (data->status != MemoryLocation::Undetermined) {
+        out << "li " << *this->target << ", " << data->offset;
+    } else {
+        out << "li " << *this->target << ", " << "<stack_offset>";
+    }
 }

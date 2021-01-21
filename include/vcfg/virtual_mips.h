@@ -431,6 +431,14 @@ public:                                         \
         void output(std::ostream &out) const override;
     };
 
+    class address : public Unary {
+        std::shared_ptr<MemoryLocation> data;
+    public:
+        explicit address(std::shared_ptr<VirtReg> reg,  std::shared_ptr<MemoryLocation> data);
+
+        void output(std::ostream &out) const override;
+    };
+
     // upward links are broken down
 
     struct CFGNode {
