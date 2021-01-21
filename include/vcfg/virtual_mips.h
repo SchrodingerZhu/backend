@@ -671,7 +671,7 @@ public:                                         \
 
 
 
-    void escaped_string(std::ostream &out, const std::string& s) {
+    static inline void escaped_string(std::ostream &out, const std::string& s) {
         for (auto ch : s) {
             switch (ch) {
                 case '\'':
