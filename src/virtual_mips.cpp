@@ -720,8 +720,8 @@ void Function::output(std::ostream &out) const {
 }
 
 size_t Function::color() {
-    auto sp = get_special(SpecialReg::sp);
-    return save_regs = blocks[0]->color(sp);
+    auto s8 = get_special(SpecialReg::s8);
+    return save_regs = blocks[0]->color(s8);
 }
 
 Function::Function(std::string name, size_t argc) : name(std::move(name)), argc(argc) {
