@@ -5,7 +5,8 @@ set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -ffunction-sections -march=native")
 include_directories(include)
 
-
+add_subdirectory(parallel-hashmap)
+include_directories(parallel-hashmap/parallel_hashmap)
 
 add_library(gcolor STATIC src/heap.cpp src/graph.cpp)
 add_library(vcfg SHARED src/virtual_mips.cpp)

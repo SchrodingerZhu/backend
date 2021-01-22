@@ -12,12 +12,19 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <unordered_set>
-#include <unordered_map>
 #include <atomic>
 #include <ostream>
 #include <algorithm>
 #include <sstream>
+#include <phmap.h>
+
+namespace std {
+    template <class T>
+    using unordered_set = phmap::parallel_flat_hash_set<T>;
+
+    template <class Key, class Value, class H = std::hash<Key>>
+    using unordered_map = phmap::parallel_flat_hash_map<Key, Value, H>;
+}
 
 namespace vmips {
 
