@@ -109,7 +109,7 @@ std::shared_ptr<VirtReg> VirtReg::create_constant(const char *name) {
 }
 
 
-void Instruction::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &) const {
+void Instruction::collect_register(unordered_set<std::shared_ptr<VirtReg>> &) const {
 
 }
 
@@ -133,7 +133,7 @@ std::shared_ptr<CFGNode> Instruction::branch() {
 }
 
 
-void Ternary::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void Ternary::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!lhs->allocated) set.insert(lhs);
     if (!op0->allocated) set.insert(op0);
     if (!op1->allocated) set.insert(op1);
@@ -162,7 +162,7 @@ void Ternary::output(std::ostream &out) const {
     out << name() << " " << *lhs << ", " << *op0 << ", " << *op1;
 }
 
-void CFGNode::dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs) {
+void CFGNode::dfs_collect(unordered_set<std::shared_ptr<VirtReg>> &regs) {
     if (visited) return;
     visited = true;
     for (auto &i : instructions) {
@@ -179,7 +179,7 @@ void CFGNode::dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs) {
     visited = false;
 }
 
-void CFGNode::setup_living(const std::unordered_set<std::shared_ptr<VirtReg>> &reg) {
+void CFGNode::setup_living(const unordered_set<std::shared_ptr<VirtReg>> &reg) {
     if (visited) return;
     visited = true;
     for (auto &i : out_edges) {
@@ -204,7 +204,7 @@ void CFGNode::setup_living(const std::unordered_set<std::shared_ptr<VirtReg>> &r
     visited = false;
 }
 
-void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &liveness) {
+void CFGNode::generate_web(unordered_set<std::shared_ptr<VirtReg>> &liveness) {
 
     if (visited) {
         // detect once more on loop
@@ -221,7 +221,7 @@ void CFGNode::generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
         return;
     }
     visited = true;
-    std::unordered_map<std::shared_ptr<VirtReg>, size_t> birth; // marks define in this scope
+    unordered_map<std::shared_ptr<VirtReg>, size_t> birth; // marks define in this scope
 
     // find new birth
     for (size_t i = 0; i < instructions.size(); ++i) {
@@ -331,12 +331,12 @@ void CFGNode::dfs_reset() {
 
 size_t CFGNode::color(const std::shared_ptr<VirtReg> &sp) {
     auto success = false;
-    std::unordered_set<size_t> res;
+    unordered_set<size_t> res;
     do {
-        std::unordered_set<std::shared_ptr<VirtReg>> regs;
+        unordered_set<std::shared_ptr<VirtReg>> regs;
         dfs_collect(regs);
         setup_living(regs);
-        std::unordered_set<std::shared_ptr<VirtReg>> liveness;
+        unordered_set<std::shared_ptr<VirtReg>> liveness;
         generate_web(liveness);
         std::vector<std::shared_ptr<VirtReg>> vec;
         for (auto &i : regs) {
@@ -348,7 +348,7 @@ size_t CFGNode::color(const std::shared_ptr<VirtReg> &sp) {
                   [](const std::shared_ptr<VirtReg> &a, const std::shared_ptr<VirtReg> &b) {
                       return a->id.number < b->id.number;
                   });
-        std::unordered_map<size_t, size_t> idx_map;
+        unordered_map<size_t, size_t> idx_map;
         for (auto i = 0; i < vec.size(); ++i) {
             idx_map[vec[i]->id.number] = i;
         }
@@ -399,7 +399,7 @@ Memory::Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> 
 
 }
 
-void Memory::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void Memory::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!target->allocated) set.insert(target);
     if (location->status == MemoryLocation::Static && !location->base->allocated) set.insert(location->base);
 }
@@ -428,7 +428,7 @@ BinaryImm::BinaryImm(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs,
         : lhs(std::move(lhs)), rhs(std::move(rhs)), imm(imm) {
 }
 
-void BinaryImm::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void BinaryImm::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!lhs->allocated) set.insert(lhs);
     if (!rhs->allocated) set.insert(rhs);
 }
@@ -460,7 +460,7 @@ Unary::Unary(std::shared_ptr<VirtReg> t)
 
 }
 
-void Unary::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void Unary::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!target->allocated) set.insert(target);
 }
 
@@ -502,7 +502,7 @@ void Binary::output(std::ostream &out) const {
     out << name() << " " << *lhs << ", " << *rhs;
 }
 
-void Binary::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void Binary::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!lhs->allocated) set.insert(lhs);
     if (!rhs->allocated) set.insert(rhs);
 }
@@ -523,11 +523,11 @@ CFGNode::CFGNode(Function *function, std::string name) : label(std::move(name)),
 
 }
 
-void CFGNode::scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &liveness) {
+void CFGNode::scan_overlap(unordered_set<std::shared_ptr<VirtReg>> &liveness) {
     if (visited) return;
 
     visited = true;
-    std::unordered_map<std::shared_ptr<VirtReg>, size_t> birth; // marks define in this scope
+    unordered_map<std::shared_ptr<VirtReg>, size_t> birth; // marks define in this scope
 
     // find new birth
     for (size_t i = 0; i < instructions.size(); ++i) {
@@ -582,7 +582,7 @@ void CFGNode::scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &livenes
     visited = false;
 }
 
-void UnaryImm::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void UnaryImm::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (!target->allocated) set.insert(target);
 }
 
@@ -780,7 +780,7 @@ void Function::switch_to(const std::shared_ptr<CFGNode> &target) {
 }
 
 void Function::scan_overlap() {
-    std::unordered_set<std::shared_ptr<VirtReg>> liveness;
+    unordered_set<std::shared_ptr<VirtReg>> liveness;
     blocks[0]->scan_overlap(liveness);
 }
 
@@ -932,7 +932,7 @@ callfunc::callfunc(std::shared_ptr<VirtReg> ret, Function *current, std::weak_pt
                    std::vector<std::shared_ptr<VirtReg>> call_with)
         : ret(std::move(ret)), function(std::move(function)), call_with(std::move(call_with)), current(current) {}
 
-void callfunc::collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const {
+void callfunc::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
     if (ret && !ret->allocated) set.insert(ret);
     for (auto &i : call_with) {
         if (!i->allocated) {

@@ -18,28 +18,27 @@
 #include <sstream>
 #include <phmap.h>
 
-namespace std {
-    template <class T>
+namespace vmips {
+
+    template<class T>
     using unordered_set = phmap::parallel_flat_hash_set<T>;
 
-    template <class Key, class Value, class H = std::hash<Key>>
+    template<class Key, class Value, class H = std::hash<Key>>
     using unordered_map = phmap::parallel_flat_hash_map<Key, Value, H>;
-}
-
-namespace vmips {
 
     struct Data {
         std::string name;
         bool read_only;
 
         Data(std::string name, bool read_only);
+
         virtual const char *type_label() const = 0;
 
         virtual void output(std::ostream &out) const = 0;
 
         template<class Type, class ...Args>
-        inline static std::shared_ptr<Data> create(bool read_only, Args&&... args) {
-            static std::atomic_size_t counter { 0 };
+        inline static std::shared_ptr<Data> create(bool read_only, Args &&... args) {
+            static std::atomic_size_t counter{0};
             std::stringstream ss;
             ss << "data_section_$$" << counter.fetch_add(1);
             return std::make_shared<Type>(ss.str(), read_only, std::forward<Args>(args)...);
@@ -71,7 +70,7 @@ namespace vmips {
         size_t identifier = -1;
         size_t offset{};
         size_t size{};
-        Function* function;
+        Function *function;
         std::shared_ptr<class VirtReg> base{};
         enum Status {
             Assigned,
@@ -90,7 +89,7 @@ namespace vmips {
         std::weak_ptr<VirtReg> parent;
         size_t union_size = 1;
         std::shared_ptr<MemoryLocation> overlap_location = nullptr;
-        std::unordered_set<std::shared_ptr<VirtReg>> neighbors;
+        unordered_set<std::shared_ptr<VirtReg>> neighbors;
         union {
             size_t number = 0;
             char name[sizeof(size_t)];
@@ -120,7 +119,7 @@ namespace vmips {
 
     class Instruction {
     public:
-        virtual void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &) const;
+        virtual void collect_register(unordered_set<std::shared_ptr<VirtReg>> &) const;
 
         virtual const char *name() const;
 
@@ -157,7 +156,7 @@ namespace vmips {
         static std::shared_ptr<Instruction>
         create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -182,7 +181,7 @@ namespace vmips {
         static std::shared_ptr<Instruction>
         create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -203,7 +202,7 @@ namespace vmips {
         template<class T>
         static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -223,7 +222,7 @@ namespace vmips {
         template<class T>
         static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> t);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -251,7 +250,7 @@ namespace vmips {
         template<class T>
         static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> t, ssize_t imm);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -264,7 +263,7 @@ namespace vmips {
 
     struct callfunc : public Instruction {
         Function *current;
-        std::unordered_set<std::shared_ptr<VirtReg>> overlap_temp{};
+        unordered_set<std::shared_ptr<VirtReg>> overlap_temp{};
         std::weak_ptr<Function> function;
         std::vector<std::shared_ptr<VirtReg>> call_with;
         std::shared_ptr<VirtReg> ret;
@@ -273,7 +272,7 @@ namespace vmips {
         callfunc(std::shared_ptr<VirtReg> ret, Function *current, std::weak_ptr<Function> function,
                  std::vector<std::shared_ptr<VirtReg>> call_with);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -332,7 +331,7 @@ namespace vmips {
 
         Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
-        void collect_register(std::unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
 
         std::shared_ptr<VirtReg> def() const override;
 
@@ -431,7 +430,7 @@ public:                                         \
     class la : public Unary {
         std::shared_ptr<Data> data;
     public:
-        explicit la(std::shared_ptr<VirtReg> reg,  std::shared_ptr<Data> data);
+        explicit la(std::shared_ptr<VirtReg> reg, std::shared_ptr<Data> data);
 
         const char *name() const override;
 
@@ -441,7 +440,7 @@ public:                                         \
     class address : public Unary {
         std::shared_ptr<MemoryLocation> data;
     public:
-        explicit address(std::shared_ptr<VirtReg> reg,  std::shared_ptr<MemoryLocation> data);
+        explicit address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data);
 
         void output(std::ostream &out) const override;
     };
@@ -454,23 +453,23 @@ public:                                         \
         bool visited = false;
         std::vector<std::shared_ptr<Instruction>> instructions{};
         std::vector<std::weak_ptr<CFGNode>> out_edges{}; // at most two
-        std::unordered_map<std::shared_ptr<VirtReg>, size_t> lives{}; // instructions.size  means live through
+        unordered_map<std::shared_ptr<VirtReg>, size_t> lives{}; // instructions.size  means live through
 
         CFGNode(Function *function, std::string name);
 
-        void dfs_collect(std::unordered_set<std::shared_ptr<VirtReg>> &regs);
+        void dfs_collect(unordered_set<std::shared_ptr<VirtReg>> &regs);
 
         void dfs_reset();
 
-        void setup_living(const std::unordered_set<std::shared_ptr<VirtReg>> &reg);
+        void setup_living(const unordered_set<std::shared_ptr<VirtReg>> &reg);
 
-        void generate_web(std::unordered_set<std::shared_ptr<VirtReg>> &liveness);
+        void generate_web(unordered_set<std::shared_ptr<VirtReg>> &liveness);
 
         void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation> &location);
 
         size_t color(const std::shared_ptr<VirtReg> &sp);
 
-        void scan_overlap(std::unordered_set<std::shared_ptr<VirtReg>> &liveness);
+        void scan_overlap(unordered_set<std::shared_ptr<VirtReg>> &liveness);
 
         void output(std::ostream &out);
 
@@ -637,8 +636,9 @@ public:                                         \
         void assign_special(SpecialReg special, ssize_t value);
 
         template<class Type, typename ...Args>
-        std::shared_ptr<struct Data> create_data(bool read_only, Args&&... args) {
-            auto data = Data::create<Type>(read_only, std::vector<typename Type::data_type> {std::forward<Args>(args)...});
+        std::shared_ptr<struct Data> create_data(bool read_only, Args &&... args) {
+            auto data = Data::create<Type>(read_only,
+                                           std::vector<typename Type::data_type>{std::forward<Args>(args)...});
             data_blocks.push_back(data);
             return data;
         }
@@ -677,8 +677,7 @@ public:                                         \
     std::ostream &operator<<(std::ostream &out, const MemoryLocation &location);
 
 
-
-    static inline void escaped_string(std::ostream &out, const std::string& s) {
+    static inline void escaped_string(std::ostream &out, const std::string &s) {
         for (auto ch : s) {
             switch (ch) {
                 case '\'':
@@ -745,8 +744,8 @@ public:                                         \
         out << '"';
     }
 
-    template <class T>
-    static inline void normal(std::ostream &out, const T& x) {
+    template<class T>
+    static inline void normal(std::ostream &out, const T &x) {
         out << x;
     }
 
@@ -781,11 +780,17 @@ public:                                         \
             out << std::endl;                                          \
          }\
 
+
     DECLARE_DATA(byte, char);
+
     DECLARE_DATA(ascii, std::string);
+
     DECLARE_DATA(asciiz, std::string);
+
     DECLARE_DATA(word, int32_t);
+
     DECLARE_DATA(hword, int64_t);
+
     DECLARE_DATA(space, size_t);
 
     struct Module {
@@ -795,6 +800,7 @@ public:                                         \
         std::string name;
 
         Module(std::string name);
+
         void output(std::ostream &out) const;
 
         std::shared_ptr<Function> create_function(std::string fname, size_t argc);
@@ -810,7 +816,7 @@ public:                                         \
         }
 
         template<class Type, typename ...Args>
-        std::shared_ptr<struct Data> create_data(bool read_only, Args&&... args) {
+        std::shared_ptr<struct Data> create_data(bool read_only, Args &&... args) {
             auto data = Data::create<Type>(read_only, std::forward<Args>(args)...);
             global_data_section.push_back(data);
             return data;
