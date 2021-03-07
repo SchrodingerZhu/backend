@@ -106,7 +106,7 @@ void test_prefix_sum() {
     auto updated = f->append<addi>(current, -1);
     f->add_phi(acc, added);
     f->add_phi(updated, current);
-    f->branch_exsiting<j>(body);
+    f->branch_existing<j>(body);
 
     // loop tail
     f->switch_to(after);
