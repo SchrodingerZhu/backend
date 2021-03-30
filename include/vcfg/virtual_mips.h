@@ -629,6 +629,8 @@ public:                                         \
 
     DECLARE(beqz, ZeroBranch);
 
+    DECLARE(bnez, ZeroBranch);
+
     DECLARE(blez, ZeroBranch);
 
     DECLARE(ble, CmpBranch);
