@@ -71,8 +71,7 @@ std::ostream &vmips::operator<<(std::ostream &out, const VirtReg &reg) {
 std::ostream &vmips::operator<<(std::ostream &out, const MemoryLocation &location) {
     if (location.status == MemoryLocation::Argument) {
         out << location.offset * 4 + location.function->stack_size << "(" << *location.base << ")";
-    }
-    else if (location.status == MemoryLocation::Assigned || location.status == MemoryLocation::Static) {
+    } else if (location.status == MemoryLocation::Assigned || location.status == MemoryLocation::Static) {
         out << location.offset << "(" << *location.base << ")";
     } else {
         out << "unallocated<" << location.identifier << ">";
@@ -301,7 +300,7 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<M
                 new_instr.push_back(save);
             instructions[i]->replace(reg, tmp);
         } else {
-            if (dynamic_cast<phi*>(instructions[i].get())) {
+            if (dynamic_cast<phi *>(instructions[i].get())) {
                 continue;
             }
             new_instr.push_back(instructions[i]);
@@ -666,7 +665,7 @@ std::shared_ptr<CFGNode> Function::entry() {
 
 void Function::output(std::ostream &out) const {
     out << "# data sections of function " << name << std::endl;
-    for (auto & i : data_blocks) {
+    for (auto &i : data_blocks) {
         i->output(out);
     }
     out << "# gcc headers for " << name << std::endl;
@@ -830,7 +829,7 @@ void Function::assign_special(SpecialReg special, ssize_t value) {
 
 std::shared_ptr<CFGNode> Function::new_section() {
     auto node = std::make_shared<CFGNode>(this, next_name());
-    if(cursor != blocks.back()) {
+    if (cursor != blocks.back()) {
         cursor->branch_existing<j>(node);
     } else {
         cursor->out_edges.push_back(node);
@@ -947,7 +946,8 @@ std::shared_ptr<VirtReg> callfunc::def() const {
 
 bool callfunc::used_register(const std::shared_ptr<VirtReg> &reg) const {
     if (ret && *ret == *reg) return true;
-    return std::any_of(call_with.begin(), call_with.end(), [&](const std::shared_ptr<VirtReg> &t) { return *t == *reg; });
+    return std::any_of(call_with.begin(), call_with.end(),
+                       [&](const std::shared_ptr<VirtReg> &t) { return *t == *reg; });
 }
 
 std::shared_ptr<VirtReg> jr::def() const {
@@ -971,13 +971,18 @@ Data::Data(std::string name, bool read_only) : name(std::move(name)), read_only(
 }
 
 IMPLEMENT_DATA(byte, 0, char_wrap);
+
 IMPLEMENT_DATA(ascii, 0, str_wrap);
+
 IMPLEMENT_DATA(asciiz, 0, str_wrap);
+
 IMPLEMENT_DATA(word, 2, normal);
+
 IMPLEMENT_DATA(hword, 1, normal);
+
 IMPLEMENT_DATA(space, 0, normal);
 
-Module::Module(std::string name) : name(std::move(name)){}
+Module::Module(std::string name) : name(std::move(name)) {}
 
 std::shared_ptr<Function> Module::create_function(std::string fname, size_t argc) {
     auto function = std::make_shared<Function>(std::move(fname), argc);
@@ -1015,7 +1020,8 @@ void la::output(std::ostream &out) const {
     out << name() << " " << *this->target << ", " << data->name;
 }
 
-address::address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data) : Unary(std::move(reg)), data(std::move(data)) {
+address::address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data) : Unary(std::move(reg)),
+                                                                                       data(std::move(data)) {
 
 }
 
@@ -1025,4 +1031,54 @@ void address::output(std::ostream &out) const {
     } else {
         out << "li " << *this->target << ", " << "<stack_offset>";
     }
+}
+
+ArrayAccess::ArrayAccess(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                         std::shared_ptr<MemoryLocation> location) : Memory(std::move(target), std::move(location)),
+                                                                     offset(std::move(offset)) {
+}
+
+void ArrayAccess::collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const {
+    Memory::collect_register(set);
+    if (offset && !offset->allocated) set.insert(offset);
+}
+
+bool ArrayAccess::used_register(const std::shared_ptr<VirtReg> &reg) const {
+    return Memory::used_register(reg) || *reg == *offset;
+}
+
+void ArrayAccess::replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) {
+    Memory::replace(reg, target);
+    if (*reg == *offset) offset = target;
+}
+
+void ArrayAccess::output(std::ostream &out) const {
+    if (location->status == MemoryLocation::Undetermined) {
+        out << name() << " " << *target << ", " << *location << ", shifted by " << *offset;
+    } else {
+        out << "# array access: " << name() << std::endl;
+        out << "\taddu $at, " << *location->base << ", " << *offset << std::endl;
+        out << "\t" << name() << " " << *target << ", ($at)";
+    }
+
+}
+
+array_load::array_load(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                       std::shared_ptr<MemoryLocation> location) : ArrayAccess(std::move(target), std::move(offset),
+                                                                               std::move(location)) {
+
+}
+
+const char *array_load::name() const {
+    return "lw";
+}
+
+array_store::array_store(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                         std::shared_ptr<MemoryLocation> location) : ArrayAccess(std::move(target), std::move(offset),
+                                                                                 std::move(location)) {
+
+}
+
+const char *array_store::name() const {
+    return "sw";
 }

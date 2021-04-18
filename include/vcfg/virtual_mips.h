@@ -250,9 +250,7 @@ namespace vmips {
          * Collect all used register that need to be colored.
          * @param collection set of register (accumulator).
          */
-        virtual void collect_register(unordered_set<std::shared_ptr<VirtReg>>
-
-                                      &collection) const;
+        virtual void collect_register(unordered_set<std::shared_ptr<VirtReg>> &collection) const;
 
         /*!
          * Get MIPS assembly name of the instruction.
@@ -551,9 +549,7 @@ namespace vmips {
 
         Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
-        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
-
-                              &set)
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set)
         const override;
 
         std::shared_ptr<VirtReg> def() const override;
@@ -682,6 +678,37 @@ public:                                         \
         explicit address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data);
 
         void output(std::ostream &out) const override;
+    };
+
+    class ArrayAccess : public Memory {
+        // def does not matter
+        std::shared_ptr<VirtReg> offset;
+    public:
+        ArrayAccess(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                   std::shared_ptr<MemoryLocation> location);
+
+        void output(std::ostream &out) const override;
+
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>> &set) const override;
+
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
+
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
+    };
+
+    class array_load : public ArrayAccess {
+    public:
+        array_load(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                std::shared_ptr<MemoryLocation> location);
+        const char* name() const override;
+    };
+
+
+    class array_store : public ArrayAccess {
+    public:
+        array_store(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                   std::shared_ptr<MemoryLocation> location);
+        const char* name() const override;
     };
 
     // upward links are broken down
