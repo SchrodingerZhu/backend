@@ -181,6 +181,13 @@ void CFGNode::dfs_collect(unordered_set<std::shared_ptr<VirtReg>> &regs) {
 void CFGNode::setup_living(const unordered_set<std::shared_ptr<VirtReg>> &reg) {
     if (visited) return;
     visited = true;
+    for (auto &i : reg) {
+        for (size_t j = 0; j < instructions.size(); ++j) {
+            if (instructions[j]->used_register(i)) {
+                lives[i] = lives.count(i) == 0 ? j : std::max(lives[i], j);
+            }
+        }
+    }
     for (auto &i : out_edges) {
         std::shared_ptr<CFGNode> n{i};
         n->setup_living(reg);
@@ -190,13 +197,6 @@ void CFGNode::setup_living(const unordered_set<std::shared_ptr<VirtReg>> &reg) {
             std::shared_ptr<CFGNode> n{j};
             if (n->lives.count(i)) {
                 lives[i] = instructions.size();
-            }
-        }
-    }
-    for (auto &i : reg) {
-        for (size_t j = 0; j < instructions.size(); ++j) {
-            if (instructions[j]->used_register(i)) {
-                lives[i] = lives.count(i) == 0 ? j : std::max(lives[i], j);
             }
         }
     }
