@@ -334,6 +334,9 @@ size_t CFGNode::color(const std::shared_ptr<VirtReg> &sp) {
     do {
         unordered_set<std::shared_ptr<VirtReg>> regs;
         dfs_collect(regs);
+        if (regs.empty()) {
+            return 0;
+        }
         setup_living(regs);
         unordered_set<std::shared_ptr<VirtReg>> liveness;
         generate_web(liveness);
