@@ -652,12 +652,14 @@ public:                                         \
     DECLARE(srlv, Ternary);
 
     class div : public Binary {
+    public:
         BASE_INIT(div, Binary);
 
         std::shared_ptr <VirtReg> def() const override;
     };
 
     class bnot : public Binary {
+    public:
         BASE_INIT(bnot, Binary);
 
         const char *name() const override {
@@ -666,6 +668,7 @@ public:                                         \
     };
 
     class bor : public Ternary {
+    public:
         BASE_INIT(bor, Ternary);
 
         const char *name() const override {
@@ -674,6 +677,7 @@ public:                                         \
     };
 
     class bxor : public Ternary {
+    public:
         BASE_INIT(bxor, Ternary);
 
         const char *name() const override {
