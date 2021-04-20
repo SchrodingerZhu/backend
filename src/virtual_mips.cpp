@@ -58,6 +58,10 @@ std::shared_ptr<VirtReg> vmips::find_root(std::shared_ptr<VirtReg> x) {
     return root;
 }
 
+std::shared_ptr <VirtReg> vmips::div::def() const {
+    return nullptr;
+}
+
 std::ostream &vmips::operator<<(std::ostream &out, const VirtReg &reg) {
     auto root = find_root(reg.parent.lock());
     if (root->allocated) {
