@@ -26,7 +26,7 @@ namespace vmips {
     template<class T>
     using unordered_set = phmap::parallel_flat_hash_set<T>;
 
-    template<class Key, class Value, class H = std::hash <Key>>
+    template<class Key, class Value, class H = std::hash<Key>>
     using unordered_map = phmap::parallel_flat_hash_map<Key, Value, H>;
 
     /*!
@@ -70,7 +70,7 @@ namespace vmips {
          * @return a shared pointer to the subclass instance
          */
         template<class Type, class ...Args>
-        inline static std::shared_ptr <Data> create(bool read_only, Args &&... args) {
+        inline static std::shared_ptr<Data> create(bool read_only, Args &&... args) {
             static std::atomic_size_t counter{0};
             std::stringstream ss;
             ss << "data_section_$$" << counter.fetch_add(1);
@@ -157,7 +157,7 @@ namespace vmips {
         /*!
          * Parent point (used in union find algorithm).
          */
-        std::weak_ptr <VirtReg> parent;
+        std::weak_ptr<VirtReg> parent;
         /*!
          * Size of the total union (used for heuristic optimal merging of two unions).
          */
@@ -166,11 +166,11 @@ namespace vmips {
          * If a temporal register life time is overlapped with a subroutine call, we need to assign
          * a stack section for it to recover it after the call.
          */
-        std::shared_ptr <MemoryLocation> overlap_location = nullptr;
+        std::shared_ptr<MemoryLocation> overlap_location = nullptr;
         /*!
          * Reachable neighbours in the lifetime graph (a.k.a. Web). Neighbours cannot use the same color.
          */
-        unordered_set<std::shared_ptr < VirtReg>> neighbors;
+        unordered_set<std::shared_ptr<VirtReg>> neighbors;
         /*!
          * Real identifier in the generated code. If the register is assigned successfully, it will use the name of
          * a real MIPS register; otherwise we just use the global identifier number to distinguish the registers.
@@ -197,14 +197,14 @@ namespace vmips {
          * Factory function to create an unassigned virtual register.
          * @return a new register instance.
          */
-        static std::shared_ptr <VirtReg> create();
+        static std::shared_ptr<VirtReg> create();
 
         /*!
          * Factory function to create a manually assigned register.
          * @param name name of the real mips register.
          * @return a new register instance.
          */
-        static std::shared_ptr <VirtReg> create_constant(const char *name);
+        static std::shared_ptr<VirtReg> create_constant(const char *name);
 
         /*!
          * Display the virtual register.
@@ -232,14 +232,14 @@ namespace vmips {
      * @param reg special register enum.
      * @return singleton of the register.
      */
-    std::shared_ptr <VirtReg> get_special(SpecialReg reg);
+    std::shared_ptr<VirtReg> get_special(SpecialReg reg);
 
     /*!
      * Union find operation to merge two lifetime nodes.
      * @param x register to be merged.
      * @param y register to be merged.
      */
-    void unite(std::shared_ptr <VirtReg> x, std::shared_ptr <VirtReg> y);
+    void unite(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y);
 
     /*!
      * The Instruction class. Represents an instruction line of MIPS.
@@ -250,9 +250,9 @@ namespace vmips {
          * Collect all used register that need to be colored.
          * @param collection set of register (accumulator).
          */
-        virtual void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        virtual void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &collection) const;
+                                      &collection) const;
 
         /*!
          * Get MIPS assembly name of the instruction.
@@ -264,21 +264,21 @@ namespace vmips {
          * Get new register defined at this instruction.
          * @return the defined register; null if nothing is newly defined.
          */
-        virtual std::shared_ptr <VirtReg> def() const;
+        virtual std::shared_ptr<VirtReg> def() const;
 
         /*!
          * Check whether this instruction used a target register.
          * @param reg register to be checked.
          * @return usage.
          */
-        virtual bool used_register(const std::shared_ptr <VirtReg> &reg) const;
+        virtual bool used_register(const std::shared_ptr<VirtReg> &reg) const;
 
         /*!
          * Replace the original register with a new one.
          * @param reg original register.
          * @param target alternative register.
          */
-        virtual void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target);
+        virtual void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target);
 
         /*!
          * Display the instruction (codegen).
@@ -290,7 +290,7 @@ namespace vmips {
          * Branch at this instruction.
          * @return the new CFGNode caused by the branch.
          */
-        virtual std::shared_ptr <CFGNode> branch();
+        virtual std::shared_ptr<CFGNode> branch();
     };
 
     /*!
@@ -303,16 +303,16 @@ namespace vmips {
         /*!
          * Registers whose lifetime to be joint.
          */
-        std::shared_ptr <VirtReg> op0, op1;
+        std::shared_ptr<VirtReg> op0, op1;
 
         /*!
          * The phi class constructor.
          * @param op0 a register whose lifetime to be joint.
          * @param op1 a register whose lifetime to be joint.
          */
-        phi(std::shared_ptr <VirtReg> op0, std::shared_ptr <VirtReg> op1);
+        phi(std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &out) const override;
     };
@@ -322,25 +322,25 @@ namespace vmips {
      */
     class Ternary : public Instruction {
     public:
-        std::shared_ptr <VirtReg> lhs;
-        std::shared_ptr <VirtReg> op0, op1;
+        std::shared_ptr<VirtReg> lhs;
+        std::shared_ptr<VirtReg> op0, op1;
 
-        Ternary(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> op0, std::shared_ptr <VirtReg> op1);
+        Ternary(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
 
         template<class T>
-        static std::shared_ptr <Instruction>
-        create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> op0, std::shared_ptr <VirtReg> op1);
+        static std::shared_ptr<Instruction>
+        create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
 
@@ -352,26 +352,26 @@ namespace vmips {
      */
     class BinaryImm : public Instruction {
     public:
-        std::shared_ptr <VirtReg> lhs;
-        std::shared_ptr <VirtReg> rhs;
+        std::shared_ptr<VirtReg> lhs;
+        std::shared_ptr<VirtReg> rhs;
         ssize_t imm;
 
-        BinaryImm(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs, ssize_t imm);
+        BinaryImm(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm);
 
         template<class T>
-        static std::shared_ptr <Instruction>
-        create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs, ssize_t imm);
+        static std::shared_ptr<Instruction>
+        create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
     };
@@ -381,24 +381,24 @@ namespace vmips {
      */
     class Binary : public Instruction {
     public:
-        std::shared_ptr <VirtReg> lhs;
-        std::shared_ptr <VirtReg> rhs;
+        std::shared_ptr<VirtReg> lhs;
+        std::shared_ptr<VirtReg> rhs;
 
-        Binary(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs);
+        Binary(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs);
 
         template<class T>
-        static std::shared_ptr <Instruction> create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs);
+        static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
     };
@@ -408,30 +408,30 @@ namespace vmips {
      */
     class Unary : public Instruction {
     public:
-        std::shared_ptr <VirtReg> target;
+        std::shared_ptr<VirtReg> target;
 
-        Unary(std::shared_ptr <VirtReg> t);
+        Unary(std::shared_ptr<VirtReg> t);
 
         template<class T>
-        static std::shared_ptr <Instruction> create(std::shared_ptr <VirtReg> t);
+        static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> t);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
 
     };
 
     template<class T>
-    std::shared_ptr <Instruction> Unary::create(std::shared_ptr <VirtReg> t) {
+    std::shared_ptr<Instruction> Unary::create(std::shared_ptr<VirtReg> t) {
         return std::make_shared<T>(t);
     }
 
@@ -440,24 +440,24 @@ namespace vmips {
      */
     class UnaryImm : public Instruction {
     public:
-        std::shared_ptr <VirtReg> target;
+        std::shared_ptr<VirtReg> target;
         ssize_t imm;
 
-        UnaryImm(std::shared_ptr <VirtReg> t, ssize_t imm);
+        UnaryImm(std::shared_ptr<VirtReg> t, ssize_t imm);
 
         template<class T>
-        static std::shared_ptr <Instruction> create(std::shared_ptr <VirtReg> t, ssize_t imm);
+        static std::shared_ptr<Instruction> create(std::shared_ptr<VirtReg> t, ssize_t imm);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &) const override;
     };
@@ -468,25 +468,25 @@ namespace vmips {
      */
     struct callfunc : public Instruction {
         Function *current;
-        unordered_set<std::shared_ptr < VirtReg>> overlap_temp{};
-        std::weak_ptr <Function> function;
-        std::vector <std::shared_ptr<VirtReg>> call_with;
-        std::shared_ptr <VirtReg> ret;
+        unordered_set<std::shared_ptr<VirtReg>> overlap_temp{};
+        std::weak_ptr<Function> function;
+        std::vector<std::shared_ptr<VirtReg>> call_with;
+        std::shared_ptr<VirtReg> ret;
         bool scanned = false;
 
-        callfunc(std::shared_ptr <VirtReg> ret, Function *current, std::weak_ptr <Function> function,
-                 std::vector <std::shared_ptr<VirtReg>> call_with);
+        callfunc(std::shared_ptr<VirtReg> ret, Function *current, std::weak_ptr<Function> function,
+                 std::vector<std::shared_ptr<VirtReg>> call_with);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         void output(std::ostream &out) const override;
 
@@ -497,15 +497,15 @@ namespace vmips {
      */
     class Unconditional : public Instruction {
     public:
-        std::weak_ptr <CFGNode> block;
+        std::weak_ptr<CFGNode> block;
 
-        explicit Unconditional(std::weak_ptr <CFGNode> block);
+        explicit Unconditional(std::weak_ptr<CFGNode> block);
 
         void output(std::ostream &) const override;
 
-        std::shared_ptr <CFGNode> branch() override;
+        std::shared_ptr<CFGNode> branch() override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
     };
 
     /*!
@@ -513,15 +513,15 @@ namespace vmips {
      */
     class ZeroBranch : public Unary {
     public:
-        std::weak_ptr <CFGNode> block;
+        std::weak_ptr<CFGNode> block;
 
-        ZeroBranch(std::weak_ptr <CFGNode> block, std::shared_ptr <VirtReg> check);
+        ZeroBranch(std::weak_ptr<CFGNode> block, std::shared_ptr<VirtReg> check);
 
         void output(std::ostream &) const override;
 
-        std::shared_ptr <CFGNode> branch() override;
+        std::shared_ptr<CFGNode> branch() override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
     };
 
     /*!
@@ -529,16 +529,16 @@ namespace vmips {
      */
     class CmpBranch : public Binary {
     public:
-        std::weak_ptr <CFGNode> block;
+        std::weak_ptr<CFGNode> block;
 
-        CmpBranch(std::weak_ptr <CFGNode> block,
-                  std::shared_ptr <VirtReg> op0, std::shared_ptr <VirtReg> op1);
+        CmpBranch(std::weak_ptr<CFGNode> block,
+                  std::shared_ptr<VirtReg> op0, std::shared_ptr<VirtReg> op1);
 
         void output(std::ostream &) const override;
 
-        std::shared_ptr <CFGNode> branch() override;
+        std::shared_ptr<CFGNode> branch() override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
     };
 
     /*!
@@ -546,25 +546,25 @@ namespace vmips {
      */
     class Memory : public Instruction {
     public:
-        std::shared_ptr <VirtReg> target;
-        std::shared_ptr <MemoryLocation> location;
+        std::shared_ptr<VirtReg> target;
+        std::shared_ptr<MemoryLocation> location;
 
-        Memory(std::shared_ptr <VirtReg> target, std::shared_ptr <MemoryLocation> location);
+        Memory(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
 
         template<class T>
-        static std::shared_ptr <Instruction>
-        create(std::shared_ptr <VirtReg> target, std::shared_ptr <MemoryLocation> location);
+        static std::shared_ptr<Instruction>
+        create(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location);
 
         void output(std::ostream &) const override;
     };
@@ -643,19 +643,23 @@ public:                                         \
 
     DECLARE(mflo, Unary);
 
+    DECLARE(mfhi, Unary);
+
     DECLARE(movn, Ternary);
 
     DECLARE(movz, Ternary);
 
     DECLARE(sllv, Ternary);
+
     DECLARE(srav, Ternary);
+
     DECLARE(srlv, Ternary);
 
     class div : public Binary {
     public:
         BASE_INIT(div, Binary);
 
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
     };
 
     class bnot : public Binary {
@@ -690,9 +694,9 @@ public:                                         \
      */
     class jr : public Unary {
     public:
-        std::shared_ptr <VirtReg> def() const override;
+        std::shared_ptr<VirtReg> def() const override;
 
-        jr(std::shared_ptr <VirtReg> reg);
+        jr(std::shared_ptr<VirtReg> reg);
     };
 
     /*!
@@ -712,9 +716,9 @@ public:                                         \
      * The la class. Pseudo MIPS instruction to load data address.
      */
     class la : public Unary {
-        std::shared_ptr <Data> data;
+        std::shared_ptr<Data> data;
     public:
-        explicit la(std::shared_ptr <VirtReg> reg, std::shared_ptr <Data> data);
+        explicit la(std::shared_ptr<VirtReg> reg, std::shared_ptr<Data> data);
 
         const char *name() const override;
 
@@ -725,36 +729,36 @@ public:                                         \
      * The address class. Virtual instruction to load data offset from stack.
      */
     class address : public Unary {
-        std::shared_ptr <MemoryLocation> data;
+        std::shared_ptr<MemoryLocation> data;
     public:
-        explicit address(std::shared_ptr <VirtReg> reg, std::shared_ptr <MemoryLocation> data);
+        explicit address(std::shared_ptr<VirtReg> reg, std::shared_ptr<MemoryLocation> data);
 
         void output(std::ostream &out) const override;
     };
 
     class ArrayAccess : public Memory {
         // def does not matter
-        std::shared_ptr <VirtReg> offset;
+        std::shared_ptr<VirtReg> offset;
     public:
-        ArrayAccess(std::shared_ptr <VirtReg> target, std::shared_ptr <VirtReg> offset,
-                    std::shared_ptr <MemoryLocation> location);
+        ArrayAccess(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                    std::shared_ptr<MemoryLocation> location);
 
         void output(std::ostream &out) const override;
 
-        void collect_register(unordered_set<std::shared_ptr < VirtReg>>
+        void collect_register(unordered_set<std::shared_ptr<VirtReg>>
 
-        &set)
+                              &set)
         const override;
 
-        bool used_register(const std::shared_ptr <VirtReg> &reg) const override;
+        bool used_register(const std::shared_ptr<VirtReg> &reg) const override;
 
-        void replace(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <VirtReg> &target) override;
+        void replace(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<VirtReg> &target) override;
     };
 
     class array_load : public ArrayAccess {
     public:
-        array_load(std::shared_ptr <VirtReg> target, std::shared_ptr <VirtReg> offset,
-                   std::shared_ptr <MemoryLocation> location);
+        array_load(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                   std::shared_ptr<MemoryLocation> location);
 
         const char *name() const override;
     };
@@ -762,8 +766,8 @@ public:                                         \
 
     class array_store : public ArrayAccess {
     public:
-        array_store(std::shared_ptr <VirtReg> target, std::shared_ptr <VirtReg> offset,
-                    std::shared_ptr <MemoryLocation> location);
+        array_store(std::shared_ptr<VirtReg> target, std::shared_ptr<VirtReg> offset,
+                    std::shared_ptr<MemoryLocation> location);
 
         const char *name() const override;
     };
@@ -788,15 +792,15 @@ public:                                         \
         /*!
          * All instructions in the basic block.
          */
-        std::vector <std::shared_ptr<Instruction>> instructions{};
+        std::vector<std::shared_ptr<Instruction>> instructions{};
         /*!
          * Out edges from this basic block.
          */
-        std::vector <std::weak_ptr<CFGNode>> out_edges{}; // at most two
+        std::vector<std::weak_ptr<CFGNode>> out_edges{}; // at most two
         /*!
          * Set used in the DFS walk of the graph to record lifetime information of the register.
          */
-        unordered_map<std::shared_ptr < VirtReg>, size_t> lives{}; // instructions.size  means live through
+        unordered_map<std::shared_ptr<VirtReg>, size_t> lives{}; // instructions.size  means live through
         /*!
          * CFGNode constructor.
          * @param function pointer to the function that owns the node.
@@ -808,9 +812,9 @@ public:                                         \
          * DFS walk to initialize the register information of the coloring graph.
          * @param regs register accumulator.
          */
-        void dfs_collect(unordered_set<std::shared_ptr < VirtReg>>
+        void dfs_collect(unordered_set<std::shared_ptr<VirtReg>>
 
-        &regs);
+                         &regs);
 
         /*!
          * DFS walk to reset the node state.
@@ -821,38 +825,38 @@ public:                                         \
          * DFS walk to calculate the lifetime information of the coloring graph.
          * @param reg register accumulator.
          */
-        void setup_living(const unordered_set<std::shared_ptr < VirtReg>>
+        void setup_living(const unordered_set<std::shared_ptr<VirtReg>>
 
-        &reg);
+                          &reg);
 
         /*!
          * DFS walk to construct coloring graph.
          * @param liveness register accumulator.
          */
-        void generate_web(unordered_set<std::shared_ptr < VirtReg>>
+        void generate_web(unordered_set<std::shared_ptr<VirtReg>>
 
-        &liveness);
+                          &liveness);
 
         /*!
          * DFS walk to spill conflicted register.
          * @param reg register to be spilled.
          * @param location fallback storage of the register.
          */
-        void spill(const std::shared_ptr <VirtReg> &reg, const std::shared_ptr <MemoryLocation> &location);
+        void spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<MemoryLocation> &location);
 
         /*!
          * Perform graph coloring algorithm to assign the registers.
          * @param sp stack frame pointer.
          */
-        size_t color(const std::shared_ptr <VirtReg> &sp);
+        size_t color(const std::shared_ptr<VirtReg> &sp);
 
         /*!
          * DFS walk to mark overlapped lifetime.
          * @param liveness register accumulator.
          */
-        void scan_overlap(unordered_set<std::shared_ptr < VirtReg>>
+        void scan_overlap(unordered_set<std::shared_ptr<VirtReg>>
 
-        &liveness);
+                          &liveness);
 
         /*!
          * Display of the node (codegen).
@@ -868,7 +872,7 @@ public:                                         \
          * @return new register defined in this instruction.
          */
         template<typename Instr, typename ...Args>
-        std::shared_ptr <VirtReg> append(Args &&...args) {
+        std::shared_ptr<VirtReg> append(Args &&...args) {
             auto ret = VirtReg::create();
             auto instr = std::make_shared<Instr>(ret, std::forward<Args>(args)...);
             instructions.push_back(instr);
@@ -880,7 +884,7 @@ public:                                         \
          * @param x register to be joint
          * @param y register to be joint
          */
-        void add_phi(std::shared_ptr <VirtReg> x, std::shared_ptr <VirtReg> y) {
+        void add_phi(std::shared_ptr<VirtReg> x, std::shared_ptr<VirtReg> y) {
             instructions.push_back(std::make_shared<phi>(std::move(x), std::move(y)));
         }
 
@@ -892,7 +896,7 @@ public:                                         \
          * @param args parameters to build the instruction.
          */
         template<typename Instr, typename ...Args>
-        void branch_existing(const std::shared_ptr <CFGNode> &node, Args &&... args) {
+        void branch_existing(const std::shared_ptr<CFGNode> &node, Args &&... args) {
             out_edges.push_back(node);
             auto instr = std::make_shared<Instr>(node, std::forward<Args>(args)...);
             instructions.push_back(instr);
@@ -907,7 +911,7 @@ public:                                         \
          * @return a new CFGNode.
          */
         template<typename Instr, typename ...Args>
-        std::shared_ptr <CFGNode> branch_single(std::string name, Args &&... args) {
+        std::shared_ptr<CFGNode> branch_single(std::string name, Args &&... args) {
             auto node = std::make_shared<CFGNode>(name);
             auto instr = std::make_shared<Instr>(node, std::forward<Args>(args)...);
             instructions.push_back(instr);
@@ -925,7 +929,7 @@ public:                                         \
          * @return a pair of new CFGNodes.
          */
         template<typename Instr, typename ...Args>
-        std::pair <std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>>
+        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>>
         branch(std::string next, std::string target, Args &&... args) {
             auto a = std::make_shared<CFGNode>(function, next);
             auto b = std::make_shared<CFGNode>(function, target);
@@ -949,12 +953,12 @@ public:                                         \
          * Stack padding amount.
          */
         static const constexpr size_t
-        PADDING = 8;
+                PADDING = 8;
         /*!
          * Stack padding mask.
          */
         static const constexpr size_t
-        MASK = PADDING - 1;
+                MASK = PADDING - 1;
         /*!
          * Basic blocks counter.
          */
@@ -978,11 +982,11 @@ public:                                         \
         /*!
          * All data blocks.
          */
-        std::vector <std::shared_ptr<struct Data>> data_blocks;
+        std::vector<std::shared_ptr<struct Data>> data_blocks;
         /*!
          * All memory blocks.
          */
-        std::vector <std::shared_ptr<MemoryLocation>> mem_blocks;
+        std::vector<std::shared_ptr<MemoryLocation>> mem_blocks;
         /*!
          * Whether the function has subroutine call.
          */
@@ -1014,11 +1018,11 @@ public:                                         \
         /*!
          * All CFGNodes.
          */
-        std::vector <std::shared_ptr<CFGNode>> blocks;
+        std::vector<std::shared_ptr<CFGNode>> blocks;
         /*!
          * Current codegen point.
          */
-        std::shared_ptr <CFGNode> cursor;
+        std::shared_ptr<CFGNode> cursor;
 
         /*!
          * Function constructor.
@@ -1038,14 +1042,14 @@ public:                                         \
          * @param size size of the memory region.
          * @return a new memory region instance.
          */
-        std::shared_ptr <MemoryLocation> new_memory(size_t size);
+        std::shared_ptr<MemoryLocation> new_memory(size_t size);
 
         /*!
          * Get a memory location represents an argument (in the callee stack frame).
          * @param index the index of the argument.
          * @return the memory location
          */
-        std::shared_ptr <MemoryLocation> argument(size_t index);
+        std::shared_ptr<MemoryLocation> argument(size_t index);
 
         /*!
          * Create a manually assigned static memory region.
@@ -1054,13 +1058,13 @@ public:                                         \
          * @param offset shift amount from the base register.
          * @return the memory location.
          */
-        std::shared_ptr <MemoryLocation> new_static_mem(size_t size, std::shared_ptr <VirtReg> reg, size_t offset);
+        std::shared_ptr<MemoryLocation> new_static_mem(size_t size, std::shared_ptr<VirtReg> reg, size_t offset);
 
         /*!
          * Start adding instruction to the function.
          * @return
          */
-        std::shared_ptr <CFGNode> entry();
+        std::shared_ptr<CFGNode> entry();
 
         /*!
          * Add a new instruction to the cursor pointed location.
@@ -1070,7 +1074,7 @@ public:                                         \
          * @return new virtual register defined in the instruction.
          */
         template<typename Instr, typename ...Args>
-        std::shared_ptr <VirtReg> append(Args &&...args) {
+        std::shared_ptr<VirtReg> append(Args &&...args) {
             return cursor->template append<Instr, Args...>(std::forward<Args>(args)...);
         }
 
@@ -1094,7 +1098,7 @@ public:                                         \
          * @return a new CFGNode.
          */
         template<typename Instr, typename ...Args>
-        std::shared_ptr <CFGNode> new_section_branch(Args &&...args) {
+        std::shared_ptr<CFGNode> new_section_branch(Args &&...args) {
             auto node = std::make_shared<CFGNode>(this, next_name());
             cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
             this->blocks.push_back(node);
@@ -1103,21 +1107,21 @@ public:                                         \
         }
 
         template<typename Instr, typename ...Args>
-        std::shared_ptr <CFGNode> branch_existing(const std::shared_ptr <CFGNode> &node, Args &&...args) {
+        std::shared_ptr<CFGNode> branch_existing(const std::shared_ptr<CFGNode> &node, Args &&...args) {
             cursor->branch_existing<Instr>(node, std::forward<Args>(args)...);
             switch_to(node);
             return node;
         }
 
 
-        std::shared_ptr <CFGNode> join(const std::shared_ptr <CFGNode> &x, const std::shared_ptr <CFGNode> &y);
+        std::shared_ptr<CFGNode> join(const std::shared_ptr<CFGNode> &x, const std::shared_ptr<CFGNode> &y);
 
-        std::shared_ptr <CFGNode> new_section();
+        std::shared_ptr<CFGNode> new_section();
 
-        void add_phi(const std::shared_ptr <VirtReg> &x, const std::shared_ptr <VirtReg> &y);
+        void add_phi(const std::shared_ptr<VirtReg> &x, const std::shared_ptr<VirtReg> &y);
 
         template<typename Instr, typename ...Args>
-        std::pair <std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(Args &&... args) {
+        std::pair<std::shared_ptr<CFGNode>, std::shared_ptr<CFGNode>> branch(Args &&... args) {
             auto a = next_name();
             auto b = next_name();
             auto ret = cursor->template branch<Instr, Args...>(a, b, std::forward<Args>(args)...);
@@ -1128,26 +1132,26 @@ public:                                         \
             return ret;
         }
 
-        void switch_to(const std::shared_ptr <CFGNode> &target);
+        void switch_to(const std::shared_ptr<CFGNode> &target);
 
         template<typename ...Args>
-        std::shared_ptr <VirtReg> call(std::weak_ptr <Function> target, Args &&... args) {
+        std::shared_ptr<VirtReg> call(std::weak_ptr<Function> target, Args &&... args) {
             auto ret = VirtReg::create();
             has_sub = true;
             sub_argc = std::max(sub_argc, target.lock()->argc);
             auto calling = std::make_shared<callfunc>(ret, this, std::move(target),
-                                                      std::vector < std::shared_ptr < VirtReg >> {
+                                                      std::vector<std::shared_ptr<VirtReg >>{
                                                               std::forward<Args>(args)...});
             cursor->instructions.push_back(calling);
             return ret;
         }
 
         template<typename ...Args>
-        void call_void(std::weak_ptr <Function> target, Args &&... args) {
+        void call_void(std::weak_ptr<Function> target, Args &&... args) {
             has_sub = true;
             sub_argc = std::max(sub_argc, target.lock()->argc);
             auto calling = std::make_shared<callfunc>(nullptr, this, std::move(target),
-                                                      std::vector < std::shared_ptr < VirtReg >> {
+                                                      std::vector<std::shared_ptr<VirtReg >>{
                                                               std::forward<Args>(args)...});
             cursor->instructions.push_back(calling);
         }
@@ -1184,7 +1188,7 @@ public:                                         \
          * @param special target.
          * @param reg source.
          */
-        void assign_special(SpecialReg special, std::shared_ptr <VirtReg> reg);
+        void assign_special(SpecialReg special, std::shared_ptr<VirtReg> reg);
 
         /*!
          * Add an assignment operation to a special register.
@@ -1204,38 +1208,38 @@ public:                                         \
         template<class Type, typename ...Args>
         std::shared_ptr<struct Data> create_data(bool read_only, Args &&... args) {
             auto data = Data::create<Type>(read_only,
-                                           std::vector < typename Type::data_type > {std::forward<Args>(args)...});
+                                           std::vector<typename Type::data_type>{std::forward<Args>(args)...});
             data_blocks.push_back(data);
             return data;
         }
     };
 
     template<class T>
-    std::shared_ptr <vmips::Instruction>
-    vmips::Ternary::create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> op0,
-                           std::shared_ptr <VirtReg> op1) {
+    std::shared_ptr<vmips::Instruction>
+    vmips::Ternary::create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> op0,
+                           std::shared_ptr<VirtReg> op1) {
         return std::make_shared<T>(std::move(lhs), std::move(op0), std::move(op1));
     }
 
     template<class T>
-    std::shared_ptr <Instruction>
-    Memory::create(std::shared_ptr <VirtReg> target, std::shared_ptr <MemoryLocation> location) {
+    std::shared_ptr<Instruction>
+    Memory::create(std::shared_ptr<VirtReg> target, std::shared_ptr<MemoryLocation> location) {
         return std::make_shared<T>(std::move(target), std::move(location));
     }
 
     template<class T>
-    std::shared_ptr <Instruction>
-    BinaryImm::create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs, ssize_t imm) {
+    std::shared_ptr<Instruction>
+    BinaryImm::create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs, ssize_t imm) {
         return std::make_shared<T>(std::move(lhs), std::move(rhs), imm);
     }
 
     template<class T>
-    std::shared_ptr <Instruction> Binary::create(std::shared_ptr <VirtReg> lhs, std::shared_ptr <VirtReg> rhs) {
+    std::shared_ptr<Instruction> Binary::create(std::shared_ptr<VirtReg> lhs, std::shared_ptr<VirtReg> rhs) {
         return std::make_shared<T>(std::move(lhs), std::move(rhs));
     }
 
     template<class T>
-    std::shared_ptr <Instruction> UnaryImm::create(std::shared_ptr <VirtReg> t, ssize_t imm) {
+    std::shared_ptr<Instruction> UnaryImm::create(std::shared_ptr<VirtReg> t, ssize_t imm) {
         return std::make_shared<T>(t, imm);
     }
 
@@ -1390,15 +1394,15 @@ public:                                         \
         /*!
          * Global data section. Shared by all functions.
          */
-        std::vector <std::shared_ptr<Data>> global_data_section;
+        std::vector<std::shared_ptr<Data>> global_data_section;
         /*!
          * Functions defined in the module.
          */
-        std::vector <std::shared_ptr<Function>> functions;
+        std::vector<std::shared_ptr<Function>> functions;
         /*!
          * Function prototypes.
          */
-        std::vector <std::shared_ptr<Function>> externs;
+        std::vector<std::shared_ptr<Function>> externs;
         std::string name;
 
         /*!
@@ -1419,7 +1423,7 @@ public:                                         \
          * @param argc function argument number.
          * @return a new function instance.
          */
-        std::shared_ptr <Function> create_function(std::string fname, size_t argc);
+        std::shared_ptr<Function> create_function(std::string fname, size_t argc);
 
         /*!
          * Create a new extern function refernece.
@@ -1427,7 +1431,7 @@ public:                                         \
          * @param argc function argument number.
          * @return a new function instance.
          */
-        std::shared_ptr <Function> create_extern(std::string fname, size_t argc);
+        std::shared_ptr<Function> create_extern(std::string fname, size_t argc);
 
         /*!
          * Allocate memory and registers for all defined functions.
