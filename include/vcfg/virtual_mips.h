@@ -661,6 +661,10 @@ public:                                         \
 
     DECLARE(slti, BinaryImm);
 
+    DECLARE(andi, BinaryImm);
+
+    DECLARE(xori, BinaryImm);
+
     class div : public Binary {
     public:
         BASE_INIT(div, Binary);
