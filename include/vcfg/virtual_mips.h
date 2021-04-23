@@ -655,6 +655,12 @@ public:                                         \
 
     DECLARE(srlv, Ternary);
 
+    DECLARE(sltu, Ternary);
+
+    DECLARE(sltiu, BinaryImm);
+
+    DECLARE(slti, BinaryImm);
+
     class div : public Binary {
     public:
         BASE_INIT(div, Binary);
