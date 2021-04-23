@@ -73,7 +73,7 @@ namespace vmips {
         inline static std::shared_ptr<Data> create(bool read_only, Args &&... args) {
             static std::atomic_size_t counter{0};
             std::stringstream ss;
-            ss << "data_section_$$" << counter.fetch_add(1);
+            ss << ".data_section_$$" << counter.fetch_add(1);
             return std::make_shared<Type>(ss.str(), read_only, std::forward<Args>(args)...);
         }
     };

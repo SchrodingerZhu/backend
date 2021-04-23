@@ -659,7 +659,7 @@ std::shared_ptr<VirtReg> CmpBranch::def() const {
 
 std::string Function::next_name() {
     std::stringstream ss;
-    ss << name << "_$$branch_" << count++;
+    ss << ".L"<< name << "_" << count++;
     return ss.str();
 }
 
@@ -704,7 +704,7 @@ void Function::output(std::ostream &out) const {
     for (auto &i : blocks) {
         i->output(out);
     }
-    out << name << "_$$epilogue:" << std::endl;
+    out << ".L" << name << "_epilogue:" << std::endl;
     out << "\t# epilogue area" << std::endl;
     if (allocated) {
         out << "\tmove $sp, $s8" << std::endl;
@@ -822,7 +822,7 @@ void Function::handle_alloca() {
 }
 
 void Function::add_ret() {
-    static auto ending = std::make_shared<text>(std::string{"j "} + this->name + "_$$epilogue");
+    static auto ending = std::make_shared<text>(std::string{"j "} + ".L" + this->name + "_epilogue");
     cursor->instructions.push_back(ending);
 }
 
