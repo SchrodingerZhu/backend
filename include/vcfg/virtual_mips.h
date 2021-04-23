@@ -699,6 +699,16 @@ public:                                         \
         }
     };
 
+    class band : public Ternary {
+    public:
+        BASE_INIT(band, Ternary);
+
+        const char *name() const override {
+            return "and";
+        }
+    };
+
+
     /*!
      * The jr class. MIPS jump return instruction.
      */
