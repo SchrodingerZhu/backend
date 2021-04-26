@@ -301,7 +301,7 @@ void CFGNode::spill(const std::shared_ptr<VirtReg> &reg, const std::shared_ptr<M
             auto save = Memory::create<sw>(tmp, location);
             new_instr.push_back(load);
             new_instr.push_back(instructions[i]);
-            if (*instructions[i]->def() == *reg)
+            if (instructions[i]->def() && *instructions[i]->def() == *reg)
                 new_instr.push_back(save);
             instructions[i]->replace(reg, tmp);
         } else {
