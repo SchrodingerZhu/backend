@@ -197,6 +197,7 @@ void CFGNode::setup_living(const unordered_set<std::shared_ptr<VirtReg>> &reg) {
         n->setup_living(reg);
     }
     for (auto &i : reg) {
+        if (i->spilled) continue;
         for (auto &j: out_edges) {
             std::shared_ptr<CFGNode> n{j};
             if (n->lives.count(i)) {
