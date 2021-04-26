@@ -670,6 +670,10 @@ public:                                         \
         BASE_INIT(div, Binary);
 
         std::shared_ptr<VirtReg> def() const override;
+
+        const char *name() const override {
+            return "div";
+        }
     };
 
     class bnot : public Binary {
