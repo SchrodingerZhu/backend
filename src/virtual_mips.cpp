@@ -553,7 +553,7 @@ void CFGNode::scan_overlap(unordered_set<std::shared_ptr<VirtReg>> &liveness) {
         for (auto &i : liveness) {
             auto k = find_root(i);
             if (k->id.name[0] != 't') continue;
-            auto interleaved = (lives.count(i) && lives[i] <= j) || (birth.count(i) && birth[i] >= j);
+            auto interleaved = (lives.count(i) && lives[i] < j) || (birth.count(i) && birth[i] >= j);
             if (!interleaved) {
                 call->overlap_temp.insert(k);
                 if (!k->overlap_location) {
