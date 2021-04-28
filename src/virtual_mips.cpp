@@ -1066,7 +1066,8 @@ void ArrayAccess::output(std::ostream &out) const {
     } else {
         out << "# array access: " << name() << std::endl;
         out << "\tli $at, " << location->offset << std::endl;
-        out << "\taddu $at, " << *location->base << ", " << *offset << std::endl;
+        out << "\taddu $at, $at, " << *location->base << std::endl;
+        out << "\taddu $at, $at, " << *offset << std::endl;
         out << "\t" << name() << " " << *target << ", ($at)";
     }
 
